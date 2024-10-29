@@ -1,0 +1,22 @@
+---
+output: github_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  warning = FALSE,
+  erro = FALSE,
+  message = FALSE,
+  comment = "#>"
+)
+```
+
+
+
+
+
+```{r}
+functions_files <- list.files('r/functions/',full.names = T)
+purrr::map(functions_files,source)
+```
+
