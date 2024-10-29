@@ -1,6 +1,8 @@
 ---
 output: github_document
 ---
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -13,9 +15,12 @@ knitr::opts_chunk$set(
 
 
 
+# 
 
 
-```{r}
+## **Loading internal functions**
+
+```{r,results='hide'}
 functions_files <- list.files('r/functions/',full.names = T)
 purrr::map(functions_files,source)
 ```
