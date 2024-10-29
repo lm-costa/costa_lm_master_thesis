@@ -7,3 +7,46 @@
 functions_files <- list.files('r/functions/',full.names = T)
 purrr::map(functions_files,source)
 ```
+
+## **Loading data and shps**
+
+``` r
+br <- geobr::read_country(showProgress = FALSE)
+south_file <- list.files('South_America/',pattern = 'shp',full.names = T)
+south_america <- sf::read_sf(south_file[1])
+biomes <- geobr::read_biomes(showProgress = FALSE)
+
+xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
+```
+
+## Temporal visualization
+
+``` r
+
+xco2df |>
+  dplyr::filter(dist_xco2<0.25) |> # radius (grid cell = 0.5°)
+  dplyr::filter(year %in% 2015:2022) |>
+  dplyr::group_by(year,date) |>
+  dplyr::summarise(xco2_mean=mean(xco2)) |>
+  ggplot2::ggplot(ggplot2::aes(x=date,y=xco2_mean))+
+  ggplot2::geom_point(shape=21,color="black",fill="gray") +
+  ggplot2::geom_line(color="red")+
+  ggplot2::geom_smooth(method = "lm") +
+  ggplot2::ylim(390,420)+
+  ggpubr::stat_regline_equation(ggplot2::aes(
+                                  label =  paste(..eq.label.., ..rr.label..,
+                                                 sep = "*plain(\",\")~~")),
+                                label.y = 420) +
+  ggplot2::facet_wrap(~year,scales ='free')+
+  ggplot2::theme_bw()+
+  ggplot2::labs(x='',y=expression('Xco'[2]~' (ppm)'),fill='' )
+```
+
+![](README_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
+
+``` r
+
+
+# ggplot2::ggsave('img/xco2_temporal_ano.png',units="in", width=10, height=7,
+#                 dpi=300)
+```
