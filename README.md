@@ -1092,7 +1092,7 @@ for(i in 2015:2022){
 #                     "output/beta_significant.xlsx")
 ```
 
-### **Ploting all beta**
+### **Plotting all beta**
 
 ``` r
 dfall |> 
@@ -1149,7 +1149,7 @@ dfall |>
 ``` r
 south_america |>
   ggplot2::ggplot()+
-  ggspatial::annotation_map_tile(type = 'cartolight')+
+  ggspatial::annotation_map_tile(type = "cartolight")+
   ggplot2::geom_sf(col='grey',fill='white')+
   ggplot2::geom_sf(data=br,col='red',fill='NA')+
   ggplot2::ylim(-35,5.5)+
@@ -1175,7 +1175,7 @@ south_america |>
 ``` r
 
 # ggplot2::ggsave('img/xco2_identification_all.png',units="in", width=11, height=11,
-#                 dpi=300)
+#                dpi=300)
 ```
 
 ### **All FCO2**
