@@ -1,10 +1,10 @@
 
-# 
+# **XCO2**
 
 ## **Loading internal functions**
 
 ``` r
-functions_files <- list.files('r/functions/',full.names = T)
+functions_files <- list.files('r/',full.names = T)
 purrr::map(functions_files,source)
 #webshot::install_phantomjs(force=TRUE)
 ```
@@ -14,6 +14,10 @@ purrr::map(functions_files,source)
 ### **Download**
 
 ``` r
+
+## Before ruining this chunk, please create a data-raw folder
+
+
 # url_filename <- list.files("url/",
 #                             pattern = ".txt",
 #                             full.names = TRUE)
@@ -184,7 +188,7 @@ xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
 \###**Descriptive statistics**
 
 ``` r
-df_stat_desc <- xco2df |>
+df_stat_desc_xco2 <- xco2df |>
   dplyr::filter(dist_xco2<0.25) |>
   dplyr::mutate(
     date = lubridate::make_date(year,month,'15')
@@ -203,7 +207,7 @@ df_stat_desc <- xco2df |>
     KRT = agricolae::kurtosis(xco2),
     )
 
-dplyr::glimpse(df_stat_desc)
+dplyr::glimpse(df_stat_desc_xco2)
 #> Rows: 101
 #> Columns: 11
 #> $ date     <date> 2015-01-15, 2015-02-15, 2015-03-15, 2015-04-15, 2015-05-15, …
@@ -1078,14 +1082,14 @@ for(i in 2015:2022){
 #### saving the file
 
 # writexl::write_xlsx(dfall |>
-#                       dplyr::filter(xco2!='NonSignificant') |> 
+#                       dplyr::filter(xco2!='NonSignificant') |>
 #                       dplyr::mutate(
-#                          beta_molm=(10000*beta_line)*44/24.45, 
-#                          beta_fco2 = beta_molm*30/1000, 
+#                          beta_molm=(10000*beta_line)*44/24.45,
+#                          beta_fco2 = beta_molm*30/1000,
 #                          beta_molm_erro=(10000*beta_error)*44/24.45,
 #                          betaerror_fco2 = beta_molm_erro*30/1000
 #                        ),
-#                     "output/beta_significant.xslx")
+#                     "output/beta_significant.xlsx")
 ```
 
 ### **Ploting all beta**
@@ -1256,3 +1260,432 @@ south_america |>
 # ggplot2::ggsave('img/xco2_fco2_erro_all.png',units="in", width=11, height=11,
 #                 dpi=300)
 ```
+
+# **SIF**
+
+## **Loading internal functions**
+
+``` r
+functions_files <- list.files('r/',full.names = T)
+purrr::map(functions_files,source)
+#webshot::install_phantomjs(force=TRUE)
+```
+
+## **SIF download and pre-processing**
+
+### **Download**
+
+``` r
+## Before ruining this chunk, please create a data-raw folder on SIF folder
+### SIF/data-raw/
+
+# url_filename <- list.files("SIF/url/",
+#                             pattern = ".txt",
+#                             full.names = TRUE)
+# 
+# urls <- read.table(url_filename) |>
+#   dplyr::filter(!stringr::str_detect(V1,".pdf"))
+# n_urls <- nrow(urls)
+# 
+# ### Download
+# tictoc::tic()
+# furrr::future_pmap(list(urls[,1],"input your user","your password"),my_sif_download)
+# tictoc::toc()
+```
+
+### **Extraction**
+
+``` r
+# files_names <- list.files("SIF/data-raw/",
+#                           pattern = "nc",
+#                           full.names = TRUE)
+# 
+# #### Extracting
+# 
+# sif_df <- purrr::map_df(files_names, my_sif_extractor)
+# dplyr::glimpse(xco2)
+# 
+# readr::write_rds(sif_df,'SIF/data/sif_full.rds')
+```
+
+### **Aggregation**
+
+``` r
+# Expand grid for brazil
+#
+##
+# dist <- 0.5
+# grid_br <- expand.grid(lon=seq(-74,
+#                                -27,dist),
+#                        lat=seq(-34,
+#                                6,
+#                                dist))
+# plot(grid_br)
+# 
+# 
+# br <- geobr::read_country(showProgress = FALSE)
+# region <- geobr::read_region(showProgress = FALSE)
+# 
+# pol_br <- br$geom |> purrr::pluck(1) |> as.matrix()
+# pol_north <- region$geom |> purrr::pluck(1) |> as.matrix()
+# pol_northeast <- region$geom |> purrr::pluck(2) |> as.matrix()
+# pol_southeast <- region$geom |> purrr::pluck(3) |> as.matrix()
+# pol_south <- region$geom |> purrr::pluck(4) |> as.matrix()
+# pol_midwest<- region$geom |> purrr::pluck(5) |> as.matrix()
+# 
+# # correcting poligions
+# 
+# pol_br <- pol_br[pol_br[,1]<=-34,]
+# pol_br <- pol_br[!((pol_br[,1]>=-38.8 & pol_br[,1]<=-38.6) &
+#                      (pol_br[,2]>= -19 & pol_br[,2]<= -16)),]
+# 
+# pol_northeast <- pol_northeast[pol_northeast[,1]<=-34,]
+# pol_northeast <- pol_northeast[!((pol_northeast[,1]>=-38.7 &
+#                                     pol_northeast[,1]<=-38.6) &
+#                                    pol_northeast[,2]<= -15),]
+# 
+# pol_southeast <- pol_southeast[pol_southeast[,1]<=-30,]
+# 
+# 
+# ### filtering expanded grid to the brazil boundries
+# 
+# grid_br_cut <- grid_br |>
+#   dplyr::mutate(
+#     flag_br = def_pol(lon,lat,pol_br),
+#     flag_north = def_pol(lon,lat,pol_north),
+#     flag_northeast = def_pol(lon,lat,pol_northeast),
+#     flag_midwest= def_pol(lon,lat,pol_midwest),
+#     flag_southeast = def_pol(lon,lat,pol_southeast),
+#     flag_south = def_pol(lon,lat,pol_south)
+#   ) |>
+#   tidyr::pivot_longer(
+#     tidyr::starts_with('flag'),
+#     names_to = 'region',
+#     values_to = 'flag'
+#   ) |>
+#   dplyr::filter(flag) |>
+#   dplyr::select(lon,lat) |>
+#   dplyr::group_by(lon,lat) |>
+#   dplyr::summarise(
+#     n_obs = dplyr::n()
+#   )
+# 
+# plot(grid_br_cut$lon,grid_br_cut$lat)
+# 
+# 
+# #### aggregation
+
+
+# sifdf <- readr::read_rds('SIF/data/sif_full.rds')
+# 
+# sif_full <- sifdf |> dplyr::mutate(
+#   date=lubridate::as_datetime(time,origin='1990-01-01 00:00:00 UTC'),
+#   date = lubridate::as_date(date),
+#   year =lubridate::year(date),
+#   month = lubridate::month(date)
+# )
+# 
+# max(sif_full$year)
+# 
+# 
+# for(i in 2015:2023){
+#   aux_sif <- sif_full |>
+#     dplyr::filter(year==i)
+#   vct_sif <- vector();dist_sif <- vector();
+#   lon_grid <- vector();lat_grid <- vector();
+#   for(k in 1:nrow(aux_sif)){
+#     d <- sqrt((aux_sif$lon[k]-grid_br_cut$lon)^2+
+#                 (aux_sif$lat[k]-grid_br_cut$lat)^2
+#     )
+#     min_index <- order(d)[1]
+#     vct_sif[k] <- aux_sif$sif_757[min_index]
+#     dist_sif[k] <- d[order(d)[1]]
+#     lon_grid[k] <- grid_br_cut$lon[min_index]
+#     lat_grid[k] <- grid_br_cut$lat[min_index]
+#   }
+#   aux_sif$dist_sif<- dist_sif
+#   aux_sif$sif_new <- vct_sif
+#   aux_sif$lon_grid <- lon_grid
+#   aux_sif$lat_grid <- lat_grid
+#   if(i == 2015){
+#     sif_full_cut <- aux_sif
+#   }else{
+#     sif_full_cut <- rbind(sif_full_cut,aux_sif)
+#   }
+# }
+# 
+# 
+# sif_full_cut|>
+#   dplyr::mutate(
+#     dist_conf = sqrt((lon - lon_grid)^2 + (lat - lat_grid)^2)
+#   ) |>
+#   dplyr::glimpse()
+# 
+# nrow(sif_full_cut |>
+#        dplyr::mutate(
+#          dist_conf = sqrt((lon - lon_grid)^2 + (lat - lat_grid)^2),
+#          dist_bol = dist_sif - dist_conf
+#        ) |>
+#        dplyr::filter(dist_bol ==0)) == nrow(sif_full_cut)
+# 
+# 
+# readr::write_rds(sif_full_cut,'SIF/data/sif_0.5deg_full_trend.rds')
+```
+
+## **Loading data and shps**
+
+``` r
+br <- geobr::read_country(showProgress = FALSE)
+south_file <- list.files('South_America/',pattern = 'shp',full.names = T)
+south_america <- sf::read_sf(south_file[1])
+biomes <- geobr::read_biomes(showProgress = FALSE) 
+
+sifdf <- readr::read_rds('SIF/data/sif_0.5deg_full_trend.rds')
+```
+
+## **Data Overview**
+
+\###**Descriptive statistics**
+
+``` r
+df_stat_desc_sif <- sifdf |>
+  dplyr::filter(dist_sif<0.25) |>
+  dplyr::mutate(
+    date = lubridate::make_date(year,month,'15')
+  ) |>
+  dplyr::group_by(date) |>
+  dplyr::summarise(
+    N = length(sif_757),
+    MIN = min(sif_757),
+    MEAN = mean(sif_757),
+    MEDIAN = median(sif_757),
+    MAX = max(sif_757),
+    VARIANCY  = var(sif_757),
+    STD_DV = sd(sif_757),
+    CV = 100*STD_DV/MEAN,
+    SKW = agricolae::skewness(sif_757),
+    KRT = agricolae::kurtosis(sif_757),
+    )
+
+dplyr::glimpse(df_stat_desc_sif)
+#> Rows: 101
+#> Columns: 11
+#> $ date     <date> 2015-01-15, 2015-02-15, 2015-03-15, 2015-04-15, 2015-05-15, …
+#> $ N        <int> 23202, 30836, 36622, 30372, 45090, 71363, 78754, 90593, 76804…
+#> $ MIN      <dbl> -1.0427303, -0.7524080, -0.6985044, -0.6951189, -0.5091486, -…
+#> $ MEAN     <dbl> 0.2914242, 0.2916353, 0.3100070, 0.2848552, 0.2529344, 0.2399…
+#> $ MEDIAN   <dbl> 0.2923632, 0.2932825, 0.3105721, 0.2830377, 0.2516689, 0.2380…
+#> $ MAX      <dbl> 2.038420, 1.640404, 2.173888, 2.233768, 1.218970, 1.845270, 1…
+#> $ VARIANCY <dbl> 0.04810556, 0.04916524, 0.04466061, 0.03748032, 0.03108620, 0…
+#> $ STD_DV   <dbl> 0.2193298, 0.2217324, 0.2113306, 0.1935983, 0.1763128, 0.1714…
+#> $ CV       <dbl> 75.26136, 76.03070, 68.16962, 67.96378, 69.70692, 71.45017, 7…
+#> $ SKW      <dbl> 0.0869094333, -0.0004636922, 0.0329194191, 0.0801529879, 0.04…
+#> $ KRT      <dbl> 1.04581939, 0.35331464, 0.62273225, 0.73318567, 0.33841330, 0…
+#DT::datatable(df_stat_desc)
+```
+
+### **Histograms**
+
+``` r
+sifdf |>
+  dplyr::filter(dist_sif<0.25 & year <2023) |>
+  ggplot2::ggplot(ggplot2::aes(x=sif_757)) +
+  ggplot2::geom_histogram(color="black",fill="gray",
+                 bins = 30) +
+  ggplot2::facet_wrap(~year, scales = "free") +
+  ggplot2::theme_bw()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
+
+## **Temporal visualization**
+
+### ***General for Brazil***
+
+``` r
+
+sifdf |>
+  dplyr::filter(dist_sif<0.25) |> # radius (grid cell = 0.5°)
+  dplyr::filter(year %in% 2015:2022) |>
+  dplyr::group_by(year,date) |>
+  dplyr::summarise(sif=mean(sif_757)) |>
+  ggplot2::ggplot(ggplot2::aes(x=date,y=sif))+
+  ggplot2::geom_point(shape=21,color="black",fill="gray") +
+  ggplot2::geom_line(color="red")+
+  ggplot2::geom_smooth(method = "lm") +
+  #ggplot2::ylim(390,420)+
+  ggpubr::stat_regline_equation(ggplot2::aes(
+                                  label =  paste(..eq.label.., ..rr.label..,
+                                                 sep = "*plain(\",\")~~")),
+                               # label.y = 420
+                               ) +
+  #ggplot2::facet_wrap(~year,scales ='free')+
+  ggplot2::theme_bw()+
+  ggplot2::labs(x='',y=expression('SIF 757nm (Wm'^-2~'sr'^-1~mu~'m'^-1~')'),fill='' )
+```
+
+![](README_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+
+## **Pré-processing**
+
+``` r
+
+sifdf_filter <- sifdf |>
+  #dplyr::filter(year == 2015) |>
+  dplyr::filter(dist_sif<0.25) |>
+  dplyr::mutate(
+    lon = lon_grid,
+    lat = lat_grid,
+  ) |>
+  dplyr::select(-c(lon_grid,lat_grid)) |>
+  dplyr::group_by(lon,lat,year,month) |>
+  dplyr::summarise(
+    sif_mean= mean(sif_757,na.rm=TRUE),
+    sif_sd = sd(sif_757,na.rm=TRUE),
+    sza = mean(sza),
+    nobs = dplyr::n(),
+    sif_ep = sif_sd/sqrt(nobs),
+    cv = 100*sif_sd/sif_mean
+  ) |>
+  dplyr::mutate(
+    date = lubridate::make_date(year,month,'15')
+  )
+
+### SIF medians for the period in per grid cell basis
+sif_medians <- sifdf_filter |>
+  dplyr::group_by(lon,lat) |>
+  dplyr::summarise(
+    sif_median = median(sif_mean)
+  )
+```
+
+## **SIF normalized**
+
+``` r
+south_america |>
+  ggplot2::ggplot()+
+  ggspatial::annotation_map_tile(type = 'cartolight')+
+  ggplot2::geom_sf(col='grey',fill='white')+
+  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+
+  ggplot2::geom_tile(data=
+                       sifdf_filter |>
+                       dplyr::select(lon, lat, date,sif_mean) |>
+                       dplyr::left_join(sif_medians) |>
+                       dplyr::group_by(lon,lat) |>
+                       dplyr::mutate(
+                         sif_norm= (sif_mean - sif_median)/sif_median,
+                         year=lubridate::year(date)
+                       ) |>
+                       dplyr::group_by(lon,lat,year) |>
+                       dplyr::summarise(
+                         sif=mean(sif_norm)
+                       ) |>
+                       dplyr::mutate(
+                         sif_class = ifelse(sif<=0,'Decreasing', 'Enhancement')
+                       ) |> dplyr::filter(year!=2023),
+                     ggplot2::aes(x=lon,y=lat,fill=sif_class),
+  )+
+  ggplot2::facet_wrap(~year)+
+  ggplot2::theme(axis.text = ggplot2::element_text(size=12),
+                 axis.title = ggplot2::element_text(size=20),
+                 text = ggplot2::element_text(size=20))+
+  map_theme_2()+
+  ggplot2::scale_fill_manual(values = c('darkred','darkgreen'))+
+  ggplot2::labs(x='Longitude',y='Latitude',fill=expression('SIF'[Norm]))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
+
+``` r
+
+# ggplot2::ggsave('img/sif_norm_all.png',units="in", width=11, height=11,
+#                 dpi=300)
+```
+
+# **Relationship between SIF norm and Beta**
+
+``` r
+sif_proce <- sifdf_filter |>
+  dplyr::select(lon, lat, date,sif_mean) |>
+  dplyr::left_join(sif_medians) |>
+  dplyr::group_by(lon,lat) |>
+  dplyr::mutate(
+    sif_norm= (sif_mean - sif_median)/sif_median,
+    year=lubridate::year(date)
+  ) |>
+  dplyr::group_by(lon,lat,year) |>
+  dplyr::summarise(
+    sif=mean(sif_norm)
+  ) |>
+  dplyr::mutate(
+    sif_class = ifelse(sif<=0,'Decreasing', 'Enhancement')
+  )
+
+
+## read beta data frame if is not in the environment 
+
+# dfall <- readxl::read_excel("output/beta_significant.xlsx")
+```
+
+``` r
+
+
+
+br |>
+  ggplot2::ggplot()+
+  ggplot2::geom_sf(fill="white", color="black",
+                   size=.15, show.legend = FALSE)+
+  ggplot2::geom_tile(data=dfall |> 
+                       dplyr::filter(xco2!="Non Significant") |> 
+                       dplyr::select(lon,lat,year,beta_line,xco2) |> 
+                       dplyr::left_join(sif_proce) |>
+                       dplyr::filter(sif_class=='Enhancement'&xco2=='Sink'),
+                     ggplot2::aes(x=lon,y=lat,fill=as.factor(year)),
+  )+
+  map_theme_2()+
+  ggplot2::scale_fill_viridis_d()+
+  ggplot2::labs(x='Longitude',y='Latitude',fill=expression(''))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
+
+### **linear regression by month for brazil**
+
+``` r
+mod <- lm(xco2_mean~x,data =xco2df_rationality |>
+            dplyr::mutate(
+              x = 1:dplyr::n()
+            ))
+xco2df_rationality |>
+  dplyr::filter(lubridate::year(date)<2023) |>
+  dplyr::mutate(
+    x=1:dplyr::n(),
+    xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
+    delta=xco2_est - xco2_mean,
+    xco2r = (mod$coefficients[1]-delta)-(mean(xco2_mean)-mod$coefficients[1])
+  ) |>
+  dplyr::group_by(date) |>
+  dplyr::summarise(xco2_mean=mean(xco2r)) |>
+  dplyr::left_join(df_stat_desc_sif |> 
+                     dplyr::select(date,MEAN) |> 
+                     dplyr::rename(sif=MEAN)) |> 
+  ggplot2::ggplot(ggplot2::aes(x=sif,y=xco2_mean))+
+  ggplot2::geom_point()+
+  ggplot2::geom_smooth(method = "lm")+
+  ggpubr::stat_regline_equation(ggplot2::aes(
+    label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+  ggplot2::theme_bw()+
+  ggplot2::theme(
+    axis.text = ggplot2::element_text(color='black'),
+    axis.ticks = ggplot2::element_line(color='black')
+  )+
+  ggplot2::xlab(expression(
+    'SIF 757nm (Wm'^-2~'sr'^-1~mu~'m'^-1~')'))+
+  ggplot2::ylab(expression(
+    'Xco'[2][R]~' (ppm)'
+  ))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
