@@ -179,7 +179,9 @@ biomes <- geobr::read_biomes(showProgress = FALSE)
 xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
 ```
 
-## 
+## **Data Overview**
+
+\###**Descriptive statistics**
 
 ``` r
 df_stat_desc <- xco2df |>
@@ -218,7 +220,7 @@ dplyr::glimpse(df_stat_desc)
 #DT::datatable(df_stat_desc)
 ```
 
-### 
+### **Histograms**
 
 ``` r
 xco2df |>
@@ -234,7 +236,7 @@ xco2df |>
 
 ## **Temporal visualization**
 
-### ***Geral Brazil***
+### ***General for Brazil***
 
 ``` r
 
@@ -266,7 +268,7 @@ xco2df |>
 #                 dpi=300)
 ```
 
-### ***Rationality***
+### ***Rationality of beta***
 
 ``` r
 xco2df_rationality <- xco2df |>
@@ -325,9 +327,7 @@ xco2df_rationality |>
 #                dpi=300)
 ```
 
-## **2015**
-
-### **Regionalization by removing some background**
+## **Beta analisys and plots on a per-year basis by grid cell**
 
 ``` r
 for(i in 2015:2022){
@@ -336,15 +336,17 @@ for(i in 2015:2022){
   
   print(i)
   
+  print("===============================================")
+  
   xco2df_filter <- xco2df |>
-    dplyr::filter(year == i) |>
+    dplyr::filter(year == i) |> ## filter by year
     dplyr::filter(dist_xco2<0.25) |>
     dplyr::mutate(
       lon = lon_grid,
       lat = lat_grid,
     ) |>
     dplyr::select(-c(lon_grid,lat_grid)) |>
-    dplyr::group_by(lon,lat,year,month) |>
+    dplyr::group_by(lon,lat,year,month) |> ## data month and grid cell aggregation
     dplyr::summarise(
       xco2_mean= mean(xco2,na.rm=TRUE),
       xco2_sd = sd(xco2,na.rm=TRUE),
@@ -357,13 +359,37 @@ for(i in 2015:2022){
       date = lubridate::make_date(year,month,'15')
     )
   
+  ### general model for the year
+  
   mod <- lm(xco2_mean~x,data =xco2df_filter |>
               dplyr::mutate(
                 x = 1:dplyr::n()
               ))
   
+  print("----------------------------")
+  print("XCO2 before regionalization")
   
   plot_1 <- xco2df_filter |>
+    dplyr::group_by(date) |>
+    dplyr::summarise(xco2_mean=mean(xco2_mean)) |>
+    ggplot2::ggplot(ggplot2::aes(x=date,y=xco2_mean )) +
+    ggplot2::geom_point(shape=21,color="black",fill="gray") +
+    ggplot2::geom_line(color="red") +
+    ggplot2::geom_smooth(method = "lm") +
+    ggpubr::stat_regline_equation(ggplot2::aes(
+      label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+    ggplot2::theme_bw()+
+    ggplot2::xlab('Date')+
+    ggplot2::ylab(expression(
+      'Xco'[2]~' (ppm)'
+    ))
+  print(plot_1)
+  
+  #### regionalization of XCO2 
+  print("----------------------------")
+  print("XCO2 after regionalization")
+  
+  plot_2 <- xco2df_filter |>
     dplyr::mutate(
       x=1:dplyr::n(),
       xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
@@ -383,8 +409,10 @@ for(i in 2015:2022){
     ggplot2::ylab(expression(
       'Xco'[2][R]~' (ppm)'
     ))
-  print(plot_1)
+  print(plot_2)
   
+  
+  ### XCO2 regionalized
   xco2detrend <- xco2df_filter |>
     dplyr::mutate(
       x=1:dplyr::n(),
@@ -408,6 +436,8 @@ for(i in 2015:2022){
   ilbr <- beta_r-ep
   slbr <- beta_r+ep
   
+  
+  ### creating a nest object by grid cell
   xco2_nest <- xco2detrend |>
     tibble::as_tibble() |>
     dplyr::mutate(year =lubridate::year(date),
@@ -444,7 +474,7 @@ for(i in 2015:2022){
   q1_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.25)
   
   
-  plot2 <- xco2_aux_detrend_new |>
+  plot3 <- xco2_aux_detrend_new |>
     ggplot2::ggplot(ggplot2::aes(x=beta_line)) +
     ggplot2::geom_histogram(bins=30,
                             fill="orange",
@@ -461,9 +491,11 @@ for(i in 2015:2022){
                                color = "darkgray",
                                fill = "lightgray")) +
     ggplot2::theme_minimal()
-  print(plot2)
+  print("----------------------------")
+  print("significant βpixel histogram")
+  print(plot3)
   
-  plot3 <- south_america |>
+  plot4 <- south_america |>
     ggplot2::ggplot()+
     ggspatial::annotation_map_tile(type = 'cartolight')+
     ggplot2::geom_sf(col='grey',fill='white')+
@@ -486,7 +518,9 @@ for(i in 2015:2022){
     ggplot2::scale_fill_manual(values = c('darkgreen','darkred'))+
     ggplot2::labs(x='Longitude',y='Latitude',
                   col=expression('Xco'[2]),fill=expression('Xco'[2]))
-  print(plot3)
+  print("----------------------------")
+  print("significant source and sink")
+  print(plot4)
   
   #### CO2 emission and assimilation
   
@@ -519,7 +553,8 @@ for(i in 2015:2022){
                   col=expression('FCO'[2]~'(g'~m^-2*month^-1~')'),
                   fill=expression('FCO'[2]~'(g'~m^-2*month^-1~')')
     )
-  
+  print("----------------------------")
+  print("CO2 Flux")
   print(plot5)
   
   plot6 <- south_america |>
@@ -550,7 +585,8 @@ for(i in 2015:2022){
                   col=expression('FCO'[2]~'error (g'~m^-2*month^-1~')'),
                   fill=expression('FCO'[2]~'error (g'~m^-2*month^-1~')')
     )
-  
+  print("----------------------------")
+  print("CO2 Flux error")
   print(plot6)
   
   print("===============================================")
@@ -558,50 +594,274 @@ for(i in 2015:2022){
 }
 #> [1] "==============================================="
 #> [1] 2015
+#> [1] "==============================================="
+#> [1] "----------------------------"
+#> [1] "XCO2 before regionalization"
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-3.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-4.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-5.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-3.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-4.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-5.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-6.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2016
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-6.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-7.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-8.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-9.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-10.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-7.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-8.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-9.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-10.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-11.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-12.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2017
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-11.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-12.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-13.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-14.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-15.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-13.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-14.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-15.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-16.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-17.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-18.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2018
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-16.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-17.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-18.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-19.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-20.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-19.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-20.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-21.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-22.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-23.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-24.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2019
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-21.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-22.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-23.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-24.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-25.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-25.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-26.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-27.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-28.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-29.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-30.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2020
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-26.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-27.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-28.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-29.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-30.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-31.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-32.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-33.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-34.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-35.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-36.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2021
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-31.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-32.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-33.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-34.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-35.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-37.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-38.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-39.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-40.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-41.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-42.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
     #> [1] 2022
+    #> [1] "==============================================="
+    #> [1] "----------------------------"
+    #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-36.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-37.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-38.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-39.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-40.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-43.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "XCO2 after regionalization"
+
+![](README_files/figure-gfm/unnamed-chunk-10-44.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant βpixel histogram"
+
+![](README_files/figure-gfm/unnamed-chunk-10-45.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "significant source and sink"
+
+![](README_files/figure-gfm/unnamed-chunk-10-46.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux"
+
+![](README_files/figure-gfm/unnamed-chunk-10-47.png)<!-- -->
+
+    #> [1] "----------------------------"
+    #> [1] "CO2 Flux error"
+
+![](README_files/figure-gfm/unnamed-chunk-10-48.png)<!-- -->
 
     #> [1] "==============================================="
