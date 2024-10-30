@@ -1,6 +1,14 @@
 
 # 
 
+## **Loading internal functions**
+
+``` r
+functions_files <- list.files('r/functions/',full.names = T)
+purrr::map(functions_files,source)
+#webshot::install_phantomjs(force=TRUE)
+```
+
 ## **XCO2 download and pre-processing**
 
 ### **Download**
@@ -160,23 +168,69 @@
 # readr::write_rds(xco2_full_trend_cut,'data/xco2_0.5deg_full_trend.rds')
 ```
 
-## **Loading internal functions**
-
-``` r
-functions_files <- list.files('r/functions/',full.names = T)
-purrr::map(functions_files,source)
-```
-
 ## **Loading data and shps**
 
 ``` r
 br <- geobr::read_country(showProgress = FALSE)
 south_file <- list.files('South_America/',pattern = 'shp',full.names = T)
 south_america <- sf::read_sf(south_file[1])
-biomes <- geobr::read_biomes(showProgress = FALSE)
+biomes <- geobr::read_biomes(showProgress = FALSE) 
 
 xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
 ```
+
+## 
+
+``` r
+df_stat_desc <- xco2df |>
+  dplyr::filter(dist_xco2<0.25) |>
+  dplyr::mutate(
+    date = lubridate::make_date(year,month,'15')
+  ) |>
+  dplyr::group_by(date) |>
+  dplyr::summarise(
+    N = length(xco2),
+    MIN = min(xco2),
+    MEAN = mean(xco2),
+    MEDIAN = median(xco2),
+    MAX = max(xco2),
+    VARIANCY  = var(xco2),
+    STD_DV = sd(xco2),
+    CV = 100*STD_DV/MEAN,
+    SKW = agricolae::skewness(xco2),
+    KRT = agricolae::kurtosis(xco2),
+    )
+
+dplyr::glimpse(df_stat_desc)
+#> Rows: 101
+#> Columns: 11
+#> $ date     <date> 2015-01-15, 2015-02-15, 2015-03-15, 2015-04-15, 2015-05-15, …
+#> $ N        <int> 4834, 3266, 3082, 3586, 6783, 14151, 22336, 39551, 27232, 120…
+#> $ MIN      <dbl> 391.2517, 392.0473, 391.5403, 392.7837, 389.5954, 393.4951, 3…
+#> $ MEAN     <dbl> 396.6295, 397.8624, 397.5033, 397.3391, 398.6293, 399.2813, 3…
+#> $ MEDIAN   <dbl> 396.7224, 397.9582, 397.3460, 397.2065, 398.6134, 399.3093, 3…
+#> $ MAX      <dbl> 401.7024, 403.9044, 403.5916, 404.4307, 404.5308, 407.0273, 4…
+#> $ VARIANCY <dbl> 1.9078310, 2.1494391, 2.6131289, 3.1185877, 2.1964112, 2.0122…
+#> $ STD_DV   <dbl> 1.3812426, 1.4660966, 1.6165175, 1.7659524, 1.4820294, 1.4185…
+#> $ CV       <dbl> 0.3482450, 0.3684934, 0.4066677, 0.4444446, 0.3717813, 0.3552…
+#> $ SKW      <dbl> -0.114600668, -0.082340999, 0.564404489, 0.591012035, 0.12079…
+#> $ KRT      <dbl> 0.22704877, 0.14272224, 0.94588958, 0.79820179, 1.10703691, 0…
+#DT::datatable(df_stat_desc)
+```
+
+### 
+
+``` r
+xco2df |>
+  dplyr::filter(dist_xco2<0.25 & year <2023) |>
+  ggplot2::ggplot(ggplot2::aes(x=xco2)) +
+  ggplot2::geom_histogram(color="black",fill="gray",
+                 bins = 30) +
+  ggplot2::facet_wrap(~year, scales = "free") +
+  ggplot2::theme_bw()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
 
 ## **Temporal visualization**
 
@@ -203,7 +257,7 @@ xco2df |>
   ggplot2::labs(x='',y=expression('Xco'[2]~' (ppm)'),fill='' )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 ``` r
 
@@ -263,10 +317,291 @@ xco2df_rationality |>
   ))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
 
 # ggplot2::ggsave('img/rationality_beta.png',units="in", width=8, height=6,
 #                dpi=300)
 ```
+
+## **2015**
+
+### **Regionalization by removing some background**
+
+``` r
+for(i in 2015:2022){
+  
+  print("===============================================")
+  
+  print(i)
+  
+  xco2df_filter <- xco2df |>
+    dplyr::filter(year == i) |>
+    dplyr::filter(dist_xco2<0.25) |>
+    dplyr::mutate(
+      lon = lon_grid,
+      lat = lat_grid,
+    ) |>
+    dplyr::select(-c(lon_grid,lat_grid)) |>
+    dplyr::group_by(lon,lat,year,month) |>
+    dplyr::summarise(
+      xco2_mean= mean(xco2,na.rm=TRUE),
+      xco2_sd = sd(xco2,na.rm=TRUE),
+      xco2_uncertanty = mean(uncertanty),
+      nobs = dplyr::n(),
+      xco2_ep = xco2_sd/sqrt(nobs),
+      cv = 100*xco2_sd/xco2_mean
+    ) |>
+    dplyr::mutate(
+      date = lubridate::make_date(year,month,'15')
+    )
+  
+  mod <- lm(xco2_mean~x,data =xco2df_filter |>
+              dplyr::mutate(
+                x = 1:dplyr::n()
+              ))
+  
+  
+  plot_1 <- xco2df_filter |>
+    dplyr::mutate(
+      x=1:dplyr::n(),
+      xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
+      delta=xco2_est - xco2_mean,
+      xco2r = (mod$coefficients[1]-delta)-(mean(xco2_mean)-mod$coefficients[1])
+    ) |>
+    dplyr::group_by(date) |>
+    dplyr::summarise(xco2_mean=mean(xco2r)) |>
+    ggplot2::ggplot(ggplot2::aes(x=date,y=xco2_mean )) +
+    ggplot2::geom_point(shape=21,color="black",fill="gray") +
+    ggplot2::geom_line(color="red") +
+    ggplot2::geom_smooth(method = "lm") +
+    ggpubr::stat_regline_equation(ggplot2::aes(
+      label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+    ggplot2::theme_bw()+
+    ggplot2::xlab('Date')+
+    ggplot2::ylab(expression(
+      'Xco'[2][R]~' (ppm)'
+    ))
+  print(plot_1)
+  
+  xco2detrend <- xco2df_filter |>
+    dplyr::mutate(
+      x=1:dplyr::n(),
+      xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
+      delta=xco2_est - xco2_mean,
+      xco2r = (mod$coefficients[1]-delta)-(mean(xco2_mean)-mod$coefficients[1])
+    )
+  xco2_aux_detrend <- xco2detrend |>
+    dplyr::ungroup() |>
+    dplyr::group_by(date) |>
+    dplyr::summarise(
+      xco2 = mean(xco2r)
+    )
+  
+  ## general linear model
+  mod_detrend <- lm(xco2 ~date,
+                    data = xco2_aux_detrend )
+  beta_r <-mod_detrend$coefficients[2] # regional beta
+  ep <- summary(mod_detrend)$coefficients[2,2] # regional standard error
+  
+  ilbr <- beta_r-ep
+  slbr <- beta_r+ep
+  
+  xco2_nest <- xco2detrend |>
+    tibble::as_tibble() |>
+    dplyr::mutate(year =lubridate::year(date),
+                  quarter = lubridate::quarter(date),
+                  quarter_year = lubridate::make_date(year, quarter, 1)) |>
+    dplyr::group_by(lon, lat,date) |>
+    dplyr::summarise(xco2 = mean(xco2r, na.rm=TRUE)) |>
+    dplyr::mutate(
+      id_time = date
+    ) |>
+    dplyr::group_by(lon,lat) |>
+    tidyr::nest()
+  
+  ### linear regression for each grid cell
+  
+  xco2_nest_detrend <- xco2_nest|>
+    dplyr::mutate(
+      beta_line = purrr::map(data,linear_reg, output="beta1"),
+      p_value = purrr::map(data,linear_reg, output="p_value"),
+      n_obs = purrr::map(data,linear_reg, output="n"),
+      beta_error=purrr::map(data,linear_reg,output='betaerror'),
+      model_error=purrr::map(data,linear_reg,output='modelerror')
+    )
+  
+  ### creating a table
+  
+  xco2_aux_detrend_new <- xco2_nest_detrend |>
+    dplyr::filter(n_obs > 4) |> ## criteria of minimum observation month for grid cell
+    tidyr::unnest(cols = c(beta_line,beta_error,model_error)) |>
+    dplyr::ungroup() |>
+    dplyr::select(lon, lat, beta_line,beta_error,model_error)
+  
+  q3_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.75)
+  q1_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.25)
+  
+  
+  plot2 <- xco2_aux_detrend_new |>
+    ggplot2::ggplot(ggplot2::aes(x=beta_line)) +
+    ggplot2::geom_histogram(bins=30,
+                            fill="orange",
+                            color="black") +
+    ggplot2::labs(x="βpixel",y="Count") +
+    ggplot2::geom_vline(xintercept = q1_xco2,
+                        color = "red",
+                        lty=2) +
+    ggplot2::geom_vline(xintercept = q3_xco2,
+                        color = "red",
+                        lty=2)+
+    gghighlight::gghighlight(beta_line < q1_xco2 | beta_line>q3_xco2,
+                             unhighlighted_params = list(
+                               color = "darkgray",
+                               fill = "lightgray")) +
+    ggplot2::theme_minimal()
+  print(plot2)
+  
+  plot3 <- south_america |>
+    ggplot2::ggplot()+
+    ggspatial::annotation_map_tile(type = 'cartolight')+
+    ggplot2::geom_sf(col='grey',fill='white')+
+    ggplot2::geom_sf(data=br,col='red',fill='NA')+
+    ggplot2::ylim(-35,5.5)+
+    ggplot2::xlim(-75,-35)+
+    ggplot2::geom_tile(data=xco2_aux_detrend_new |>
+                         dplyr::mutate(
+                           xco2 = dplyr::case_when(
+                             beta_line > q3_xco2 ~ 'Source',
+                             beta_line < q1_xco2 ~'Sink',
+                             .default = 'Non Significant'
+                           )
+                         ) |>
+                         dplyr::filter(xco2!='Non Significant'),
+                       ggplot2::aes(x=lon,y=lat,color=xco2,fill=xco2),
+    )+
+    map_theme_2()+
+    ggplot2::scale_color_manual(values = c('darkgreen','darkred'))+
+    ggplot2::scale_fill_manual(values = c('darkgreen','darkred'))+
+    ggplot2::labs(x='Longitude',y='Latitude',
+                  col=expression('Xco'[2]),fill=expression('Xco'[2]))
+  print(plot3)
+  
+  #### CO2 emission and assimilation
+  
+  plot5 <- south_america |>
+    ggplot2::ggplot()+
+    ggspatial::annotation_map_tile(type = 'cartolight')+
+    ggplot2::geom_sf(col='grey',fill='white')+
+    ggplot2::geom_sf(data=br,col='red',fill='NA')+
+    ggplot2::ylim(-35,5.5)+
+    ggplot2::xlim(-75,-35)+
+    ggplot2::geom_tile(data=xco2_aux_detrend_new |>
+                         dplyr::mutate(
+                           xco2 = dplyr::case_when(
+                             beta_line > q3_xco2 ~ 'Source',
+                             beta_line < q1_xco2 ~'Sink',
+                             .default = 'Non Significant'
+                           )
+                         ) |>
+                         dplyr::filter(xco2!='Non Significant') |>
+                         dplyr::mutate(
+                           beta_molm=(beta_line*10000)*44/24.45, # beta conversion to mg mol/m3 day * 10000m ===> mg mol / m2 day
+                           fco2 = beta_molm*30/1000, # montly fco2 ===> /1000 is to get in grams
+                         ),
+                       ggplot2::aes(x=lon,y=lat,color=fco2,fill=fco2)
+    )+
+    ggplot2::scale_color_gradient(high='yellow',low='blue')+
+    ggplot2::scale_fill_gradient(high='yellow',low='blue')+
+    map_theme_2()+
+    ggplot2::labs(x='Longitude',y='Latitude',
+                  col=expression('FCO'[2]~'(g'~m^-2*month^-1~')'),
+                  fill=expression('FCO'[2]~'(g'~m^-2*month^-1~')')
+    )
+  
+  print(plot5)
+  
+  plot6 <- south_america |>
+    ggplot2::ggplot()+
+    ggspatial::annotation_map_tile(type = 'cartolight')+
+    ggplot2::geom_sf(col='grey',fill='white')+
+    ggplot2::geom_sf(data=br,col='red',fill='NA')+
+    ggplot2::ylim(-35,6)+
+    ggplot2::xlim(-75,-35)+
+    ggplot2::geom_tile(data=xco2_aux_detrend_new |>
+                         dplyr::mutate(
+                           xco2 = dplyr::case_when(
+                             beta_line > q3_xco2 ~ 'Source',
+                             beta_line < q1_xco2 ~'Sink',
+                             .default = 'Non Significant'
+                           )
+                         ) |>
+                         dplyr::filter(xco2!='Non Significant')|>
+                         dplyr::mutate(
+                           beta_molm=(beta_error*10000)*44/24.45,
+                           fco2_error = beta_molm*30/1000),
+                       ggplot2::aes(x=lon,y=lat,color=fco2_error,fill=fco2_error)
+    )+
+    ggplot2::scale_color_gradient(high='yellow',low='blue')+
+    ggplot2::scale_fill_gradient(high='yellow',low='blue')+
+    map_theme_2()+
+    ggplot2::labs(x='Longitude',y='Latitude',
+                  col=expression('FCO'[2]~'error (g'~m^-2*month^-1~')'),
+                  fill=expression('FCO'[2]~'error (g'~m^-2*month^-1~')')
+    )
+  
+  print(plot6)
+  
+  print("===============================================")
+  
+}
+#> [1] "==============================================="
+#> [1] 2015
+```
+
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-3.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-4.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-5.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2016
+
+![](README_files/figure-gfm/unnamed-chunk-10-6.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-7.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-8.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-9.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-10.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2017
+
+![](README_files/figure-gfm/unnamed-chunk-10-11.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-12.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-13.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-14.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-15.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2018
+
+![](README_files/figure-gfm/unnamed-chunk-10-16.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-17.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-18.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-19.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-20.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2019
+
+![](README_files/figure-gfm/unnamed-chunk-10-21.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-22.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-23.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-24.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-25.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2020
+
+![](README_files/figure-gfm/unnamed-chunk-10-26.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-27.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-28.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-29.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-30.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2021
+
+![](README_files/figure-gfm/unnamed-chunk-10-31.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-32.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-33.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-34.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-35.png)<!-- -->
+
+    #> [1] "==============================================="
+    #> [1] "==============================================="
+    #> [1] 2022
+
+![](README_files/figure-gfm/unnamed-chunk-10-36.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-37.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-38.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-39.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-10-40.png)<!-- -->
+
+    #> [1] "==============================================="

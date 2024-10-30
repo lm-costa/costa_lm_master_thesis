@@ -29,11 +29,11 @@ est_desc <- function(x){
 
   return(c(N = n,
            N_perdidos = n_na, # <<<<<<<<<--------
-           Media = m,Mediana = md,
+           Mean = m,Median = md,
            Min = mini,Max = maxi,
            Var = s2,DP = dp,
            Q1 = q1,Q3 = q3,
            CV = cv,EPM = epm,
-           G1 = g1,G2 = g2,
+           Skewness = g1,Kurtosis = g2,
            Shapiro=normtest$p.value))
 }
