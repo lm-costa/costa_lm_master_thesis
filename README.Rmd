@@ -546,8 +546,8 @@ for(i in 2015:2022){
                          ),
                        ggplot2::aes(x=lon,y=lat,color=fco2,fill=fco2)
     )+
-    ggplot2::scale_color_gradient(high='yellow',low='blue')+
-    ggplot2::scale_fill_gradient(high='yellow',low='blue')+
+    ggplot2::scale_color_viridis_c(option = "inferno")+
+    ggplot2::scale_fill_viridis_c(option = "inferno")+
     map_theme_2()+
     ggplot2::labs(x='Longitude',y='Latitude',
                   col=expression('FCO'[2]~'(g'~m^-2*month^-1~')'),
@@ -578,8 +578,8 @@ for(i in 2015:2022){
                            fco2_error = beta_molm*30/1000),
                        ggplot2::aes(x=lon,y=lat,color=fco2_error,fill=fco2_error)
     )+
-    ggplot2::scale_color_gradient(high='yellow',low='blue')+
-    ggplot2::scale_fill_gradient(high='yellow',low='blue')+
+    ggplot2::scale_color_viridis_c(option = "inferno")+
+    ggplot2::scale_fill_viridis_c(option = "inferno")+
     map_theme_2()+
     ggplot2::labs(x='Longitude',y='Latitude',
                   col=expression('FCO'[2]~'error (g'~m^-2*month^-1~')'),
@@ -595,4 +595,377 @@ for(i in 2015:2022){
 
 ```
 
+
+
+## **Creating a unique dataframe**
+
+```{r}
+for(i in 2015:2022){
+  if(i == 2015){
+    
+    xco2df_filter <- xco2df |>
+      dplyr::filter(year == i) |> ## filter by year
+      dplyr::filter(dist_xco2<0.25) |>
+      dplyr::mutate(
+        lon = lon_grid,
+        lat = lat_grid,
+      ) |>
+      dplyr::select(-c(lon_grid,lat_grid)) |>
+      dplyr::group_by(lon,lat,year,month) |> ## data month and grid cell aggregation
+      dplyr::summarise(
+        xco2_mean= mean(xco2,na.rm=TRUE),
+        xco2_sd = sd(xco2,na.rm=TRUE),
+        xco2_uncertanty = mean(uncertanty),
+        nobs = dplyr::n(),
+        xco2_ep = xco2_sd/sqrt(nobs),
+        cv = 100*xco2_sd/xco2_mean
+      ) |>
+      dplyr::mutate(
+        date = lubridate::make_date(year,month,'15')
+      )
+    
+    ### general model for the year
+    
+    mod <- lm(xco2_mean~x,data =xco2df_filter |>
+                dplyr::mutate(
+                  x = 1:dplyr::n()
+                ))
+    
+    
+    #### regionalization of XCO2 
+    xco2detrend <- xco2df_filter |>
+      dplyr::mutate(
+        x=1:dplyr::n(),
+        xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
+        delta=xco2_est - xco2_mean,
+        xco2r = (mod$coefficients[1]-delta)-(mean(xco2_mean)-mod$coefficients[1])
+      )
+    xco2_aux_detrend <- xco2detrend |>
+      dplyr::ungroup() |>
+      dplyr::group_by(date) |>
+      dplyr::summarise(
+        xco2 = mean(xco2r)
+      )
+    
+    ## general linear model
+    mod_detrend <- lm(xco2 ~date,
+                      data = xco2_aux_detrend )
+    beta_r <-mod_detrend$coefficients[2] # regional beta
+    ep <- summary(mod_detrend)$coefficients[2,2] # regional standard error
+    
+    ilbr <- beta_r-ep
+    slbr <- beta_r+ep
+    
+    
+    ### creating a nest object by grid cell
+    xco2_nest <- xco2detrend |>
+      tibble::as_tibble() |>
+      dplyr::mutate(year =lubridate::year(date),
+                    quarter = lubridate::quarter(date),
+                    quarter_year = lubridate::make_date(year, quarter, 1)) |>
+      dplyr::group_by(lon, lat,date) |>
+      dplyr::summarise(xco2 = mean(xco2r, na.rm=TRUE)) |>
+      dplyr::mutate(
+        id_time = date
+      ) |>
+      dplyr::group_by(lon,lat) |>
+      tidyr::nest()
+    
+    ### linear regression for each grid cell
+    
+    xco2_nest_detrend <- xco2_nest|>
+      dplyr::mutate(
+        beta_line = purrr::map(data,linear_reg, output="beta1"),
+        p_value = purrr::map(data,linear_reg, output="p_value"),
+        n_obs = purrr::map(data,linear_reg, output="n"),
+        beta_error=purrr::map(data,linear_reg,output='betaerror'),
+        model_error=purrr::map(data,linear_reg,output='modelerror')
+      )
+    
+    ### creating a table
+    
+    xco2_aux_detrend_new <- xco2_nest_detrend |>
+      dplyr::filter(n_obs > 4) |> ## criteria of minimum observation month for grid cell
+      tidyr::unnest(cols = c(beta_line,beta_error,model_error)) |>
+      dplyr::ungroup() |>
+      dplyr::select(lon, lat, beta_line,beta_error,model_error) |> 
+      dplyr::mutate(year=i)
+    
+    q3_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.75)
+    q1_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.25)
+    
+    dfall <- xco2_aux_detrend_new |> dplyr::mutate(
+      xco2 = dplyr::case_when(
+        beta_line > q3_xco2 ~ 'Source',
+        beta_line < q1_xco2 ~'Sink',
+        .default = 'Non Significant'
+      )
+    )
+  }else{
+    xco2df_filter <- xco2df |>
+      dplyr::filter(year == i) |> ## filter by year
+      dplyr::filter(dist_xco2<0.25) |>
+      dplyr::mutate(
+        lon = lon_grid,
+        lat = lat_grid,
+      ) |>
+      dplyr::select(-c(lon_grid,lat_grid)) |>
+      dplyr::group_by(lon,lat,year,month) |> ## data month and grid cell aggregation
+      dplyr::summarise(
+        xco2_mean= mean(xco2,na.rm=TRUE),
+        xco2_sd = sd(xco2,na.rm=TRUE),
+        xco2_uncertanty = mean(uncertanty),
+        nobs = dplyr::n(),
+        xco2_ep = xco2_sd/sqrt(nobs),
+        cv = 100*xco2_sd/xco2_mean
+      ) |>
+      dplyr::mutate(
+        date = lubridate::make_date(year,month,'15')
+      )
+    
+    ### general model for the year
+    
+    mod <- lm(xco2_mean~x,data =xco2df_filter |>
+                dplyr::mutate(
+                  x = 1:dplyr::n()
+                ))
+    
+    
+    #### regionalization of XCO2 
+    xco2detrend <- xco2df_filter |>
+      dplyr::mutate(
+        x=1:dplyr::n(),
+        xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
+        delta=xco2_est - xco2_mean,
+        xco2r = (mod$coefficients[1]-delta)-(mean(xco2_mean)-mod$coefficients[1])
+      )
+    xco2_aux_detrend <- xco2detrend |>
+      dplyr::ungroup() |>
+      dplyr::group_by(date) |>
+      dplyr::summarise(
+        xco2 = mean(xco2r)
+      )
+    
+    ## general linear model
+    mod_detrend <- lm(xco2 ~date,
+                      data = xco2_aux_detrend )
+    beta_r <-mod_detrend$coefficients[2] # regional beta
+    ep <- summary(mod_detrend)$coefficients[2,2] # regional standard error
+    
+    ilbr <- beta_r-ep
+    slbr <- beta_r+ep
+    
+    
+    ### creating a nest object by grid cell
+    xco2_nest <- xco2detrend |>
+      tibble::as_tibble() |>
+      dplyr::mutate(year =lubridate::year(date),
+                    quarter = lubridate::quarter(date),
+                    quarter_year = lubridate::make_date(year, quarter, 1)) |>
+      dplyr::group_by(lon, lat,date) |>
+      dplyr::summarise(xco2 = mean(xco2r, na.rm=TRUE)) |>
+      dplyr::mutate(
+        id_time = date
+      ) |>
+      dplyr::group_by(lon,lat) |>
+      tidyr::nest()
+    
+    ### linear regression for each grid cell
+    
+    xco2_nest_detrend <- xco2_nest|>
+      dplyr::mutate(
+        beta_line = purrr::map(data,linear_reg, output="beta1"),
+        p_value = purrr::map(data,linear_reg, output="p_value"),
+        n_obs = purrr::map(data,linear_reg, output="n"),
+        beta_error=purrr::map(data,linear_reg,output='betaerror'),
+        model_error=purrr::map(data,linear_reg,output='modelerror')
+      )
+    
+    ### creating a table
+    
+    xco2_aux_detrend_new <- xco2_nest_detrend |>
+      dplyr::filter(n_obs > 4) |> ## criteria of minimum observation month for grid cell
+      tidyr::unnest(cols = c(beta_line,beta_error,model_error)) |>
+      dplyr::ungroup() |>
+      dplyr::select(lon, lat, beta_line,beta_error,model_error) |> 
+      dplyr::mutate(year=i)
+    
+    q3_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.75)
+    q1_xco2 <- xco2_aux_detrend_new |> dplyr::pull(beta_line) |> quantile(.25)
+    
+    dfall_aux <- xco2_aux_detrend_new |> dplyr::mutate(
+      xco2 = dplyr::case_when(
+        beta_line > q3_xco2 ~ 'Source',
+        beta_line < q1_xco2 ~'Sink',
+        .default = 'Non Significant'
+      )
+    )
+    
+    dfall <- rbind(dfall,dfall_aux)
+  }
+}
+
+
+#### saving the file
+
+# writexl::write_xlsx(dfall |>
+#                       dplyr::filter(xco2!='NonSignificant') |> 
+#                       dplyr::mutate(
+#                          beta_molm=(10000*beta_line)*44/24.45, 
+#                          beta_fco2 = beta_molm*30/1000, 
+#                          beta_molm_erro=(10000*beta_error)*44/24.45,
+#                          betaerror_fco2 = beta_molm_erro*30/1000
+#                        ),
+#                     "output/beta_significant.xslx")
+
+```
+
+
+### **Ploting all beta**
+```{r}
+dfall |> 
+  ggplot2::ggplot(ggplot2::aes(x=beta_line*30, y=as.character(year),
+                               col=as.character(year), fill=as.character(year)))+
+  ggridges::geom_density_ridges(alpha=.2)+
+  ggplot2::geom_vline(xintercept =dfall |>
+                        dplyr::summarise(b=median(beta_line)) |>
+                        dplyr::pull(b)*30, linetype='dashed', color='black')+
+  ggplot2::scale_color_viridis_d()+
+  ggplot2::scale_fill_viridis_d()+
+  #ggplot2::facet_wrap(~xco2,scales = 'free_x')+
+  ggplot2::theme_bw()+
+  ggplot2::labs(x=expression('βxco'[2]~'(ppm month'^-1~')'),y='',col='',fill='')
+```
+
+
+### **Avegerage CO2 balance for Brazil**
+```{r}
+dfall |>
+  dplyr::filter(xco2!='Non Significant') |> 
+  dplyr::mutate(
+    beta_molm=(10000*beta_line)*44/24.45, ## ppm to mg/m2 day (10000m is the column)
+    beta_fco2 = beta_molm*30/1000, ## mg mol/m2 day ===> g CO2 month^-1 
+    beta_molm_erro=(10000*beta_error)*44/24.45,
+    betaerror_fco2 = beta_molm_erro*30/1000
+  ) |> 
+  dplyr::group_by(year) |>
+  dplyr::summarise(
+    fco2=mean(beta_fco2),
+    fco2err=mean(betaerror_fco2),
+    effective_balance = sum(12*beta_fco2*(55000^2))/1e15, ## 12 is month 55000^2 is the grid cell area in m^2 
+    mean_balance = 12*fco2*8510000000000/1e15,## 12 is month 8.51e12 is brazil's area in m^2 
+    mean_error = 12*fco2err*8510000000000/1e15
+  ) |>
+  ggplot2::ggplot(ggplot2::aes(x=year,y=mean_balance,
+                               ymax=mean_balance+mean_error,
+                               ymin=mean_balance))+
+  ggplot2::geom_col()+
+  ggplot2::geom_errorbar()+
+  ggplot2::labs(
+    x='',
+    y=expression('CO'[2]~' Balance (Pg)')
+  )+
+  ggplot2::theme_bw()
+```
+
+
+### **All CO2 sources and sinks**
+```{r}
+south_america |>
+  ggplot2::ggplot()+
+  ggspatial::annotation_map_tile(type = 'cartolight')+
+  ggplot2::geom_sf(col='grey',fill='white')+
+  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+
+  ggplot2::geom_tile(data=dfall |>
+                       dplyr::filter(xco2!='Non Significant'),
+                     ggplot2::aes(x=lon,y=lat,color=xco2,fill=xco2),
+  )+
+  ggplot2::facet_wrap(~year)+
+  ggplot2::theme(axis.text = ggplot2::element_text(size=12),
+                 axis.title = ggplot2::element_text(size=20),
+                 text = ggplot2::element_text(size=20)
+                 )+
+  map_theme_2()+
+  ggplot2::scale_color_manual(values = c('darkgreen','darkred'))+
+  ggplot2::scale_fill_manual(values = c('darkgreen','darkred'))+
+  ggplot2::labs(x='Longitude',y='Latitude',
+                col=expression('Xco'[2]),fill=expression('Xco'[2]))
+
+# ggplot2::ggsave('img/xco2_identification_all.png',units="in", width=11, height=11,
+#                 dpi=300)
+```
+
+### **All FCO2**
+
+```{r}
+south_america |>
+  ggplot2::ggplot()+
+  ggspatial::annotation_map_tile(type = 'cartolight')+
+  ggplot2::geom_sf(col='grey',fill='white')+
+  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+
+  ggplot2::geom_tile(data=dfall |>
+                       dplyr::filter(xco2!='Non Significant')|> 
+                       dplyr::mutate(
+                         beta_molm=(10000*beta_line)*44/24.45, 
+                         beta_fco2 = beta_molm*30/1000, 
+                         beta_molm_erro=(10000*beta_error)*44/24.45,
+                         betaerror_fco2 = beta_molm_erro*30/1000
+                       ), 
+                     ggplot2::aes(x=lon,y=lat,color=beta_fco2,fill=beta_fco2),
+  )+
+  ggplot2::facet_wrap(~year)+
+  ggplot2::theme(axis.text = ggplot2::element_text(size=12),
+                 axis.title = ggplot2::element_text(size=20),
+                 text = ggplot2::element_text(size=20)
+  )+
+  map_theme_2()+
+  ggplot2::scale_color_viridis_c(option = "inferno")+
+  ggplot2::scale_fill_viridis_c(option = "inferno")+
+  ggplot2::labs(x='Longitude',y='Latitude',
+                col=expression('FCO'[2]),
+                fill=expression('FCO'[2])
+  )
+
+# ggplot2::ggsave('img/xco2_fco2_all.png',units="in", width=11, height=11,
+#                 dpi=300)
+```
+
+### **All FCO2 errors**
+```{r}
+south_america |>
+  ggplot2::ggplot()+
+  ggspatial::annotation_map_tile(type = 'cartolight')+
+  ggplot2::geom_sf(col='grey',fill='white')+
+  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+
+  ggplot2::geom_tile(data=dfall |>
+                       dplyr::filter(xco2!='Non Significant')|> 
+                       dplyr::mutate(
+                         beta_molm=(10000*beta_line)*44/24.45, 
+                         beta_fco2 = beta_molm*30/1000, 
+                         beta_molm_erro=(10000*beta_error)*44/24.45,
+                         betaerror_fco2 = beta_molm_erro*30/1000
+                       ), 
+                     ggplot2::aes(x=lon,y=lat,color=betaerror_fco2,fill=betaerror_fco2),
+  )+
+  ggplot2::facet_wrap(~year)+
+  ggplot2::theme(axis.text = ggplot2::element_text(size=12),
+                 axis.title = ggplot2::element_text(size=20),
+                 text = ggplot2::element_text(size=20)
+  )+
+  map_theme_2()+
+  ggplot2::scale_color_viridis_c(option = "inferno")+
+  ggplot2::scale_fill_viridis_c(option = "inferno")+
+  ggplot2::labs(x='Longitude',y='Latitude',
+                col=expression(epsilon~'FCO'[2]),
+                fill=expression(epsilon~'FCO'[2])
+  )
+# ggplot2::ggsave('img/xco2_fco2_erro_all.png',units="in", width=11, height=11,
+#                 dpi=300)
+```
 
