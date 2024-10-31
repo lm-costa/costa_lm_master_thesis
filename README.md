@@ -185,7 +185,7 @@ xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
 
 ## **Data Overview**
 
-\###**Descriptive statistics**
+### **Descriptive statistics**
 
 ``` r
 df_stat_desc_xco2 <- xco2df |>
@@ -1445,7 +1445,7 @@ sifdf <- readr::read_rds('SIF/data/sif_0.5deg_full_trend.rds')
 
 ## **Data Overview**
 
-\###**Descriptive statistics**
+### **Descriptive statistics**
 
 ``` r
 df_stat_desc_sif <- sifdf |>
@@ -1689,3 +1689,62 @@ xco2df_rationality |>
 ```
 
 ![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+
+# **Comparison with other studies**
+
+``` r
+df_comparison <- readxl::read_excel('comparison/comparison.xlsx')
+
+df_comparison |> 
+  dplyr::group_by(Source,Biome) |> 
+  dplyr::summarise(
+    FCO2=mean(FCO2,na.rm=T),
+    std=mean(std,na.rm=T)
+  ) |> 
+  ggplot2::ggplot(ggplot2::aes(x=Source,y=FCO2,
+                               ymax=FCO2+std,
+                               ymin=FCO2-std,
+                               col=Source
+  ))+
+  ggplot2::geom_point(fill='white', alpha=.5)+
+  ggplot2::geom_errorbar()+
+  ggplot2::facet_wrap(~Biome,scales = 'free')+
+  ggplot2::scale_color_viridis_d()+
+  ggplot2::labs(x='',
+                y=expression('FCO'[2]~'(g CO'[2]~m^-2*month^-1~')'))+
+  ggplot2::theme(axis.text.x  = ggplot2::element_text(hjust = 1,angle = 45))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
+
+``` r
+
+
+# ggsave('figure.png',
+#        units="in", width=12, height=6,
+#        dpi=300)
+```
+
+``` r
+df_comparison |> 
+  dplyr::group_by(Source,Biome) |> 
+  dplyr::summarise(
+    FCO2=mean(FCO2,na.rm=T),
+    std=mean(std,na.rm=T)
+  )
+#> # A tibble: 23 × 4
+#> # Groups:   Source [11]
+#>    Source               Biome              FCO2      std
+#>    <chr>                <chr>             <dbl>    <dbl>
+#>  1 Basso et al., 2023   Amazon            5.48    7.16  
+#>  2 Broggio et al., 2024 Atlantic Forest   2.05  NaN     
+#>  3 Ciais et al. 2017    SA|Brazil        -1.2     4.97  
+#>  4 Gatti et al., 2021   Amazon           12.1    16.5   
+#>  5 Gatti et al., 2023   Amazon           13.2     2.20  
+#>  6 Gomes et al., 2022   Cerrado           0.07  NaN     
+#>  7 Liu et al., 2021     SA|Brazil        -1.71    1.71  
+#>  8 Mendes et al. 2020   Caatinga         -0.132   0.0075
+#>  9 OCO-2 MIP v10        Amazon           17.4    24.3   
+#> 10 OCO-2 MIP v10        Atlantic Forest -10.9     8.90  
+#> # ℹ 13 more rows
+```

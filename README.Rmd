@@ -207,7 +207,7 @@ xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
 
 ## **Data Overview**
 
-###**Descriptive statistics** 
+### **Descriptive statistics** 
 
 ```{r}
 df_stat_desc_xco2 <- xco2df |>
@@ -1162,7 +1162,7 @@ sifdf <- readr::read_rds('SIF/data/sif_0.5deg_full_trend.rds')
 
 ## **Data Overview**
 
-###**Descriptive statistics** 
+### **Descriptive statistics** 
 
 ```{r}
 df_stat_desc_sif <- sifdf |>
@@ -1386,5 +1386,47 @@ xco2df_rationality |>
   ))
   
 
+```
+
+
+# **Comparison with other studies**
+
+```{r}
+df_comparison <- readxl::read_excel('comparison/comparison.xlsx')
+
+df_comparison |> 
+  dplyr::group_by(Source,Biome) |> 
+  dplyr::summarise(
+    FCO2=mean(FCO2,na.rm=T),
+    std=mean(std,na.rm=T)
+  ) |> 
+  ggplot2::ggplot(ggplot2::aes(x=Source,y=FCO2,
+                               ymax=FCO2+std,
+                               ymin=FCO2-std,
+                               col=Source
+  ))+
+  ggplot2::geom_point(fill='white', alpha=.5)+
+  ggplot2::geom_errorbar()+
+  ggplot2::facet_wrap(~Biome,scales = 'free')+
+  ggplot2::scale_color_viridis_d()+
+  ggplot2::labs(x='',
+                y=expression('FCO'[2]~'(g CO'[2]~m^-2*month^-1~')'))+
+  ggplot2::theme(axis.text.x  = ggplot2::element_text(hjust = 1,angle = 45))
+
+
+# ggsave('figure.png',
+#        units="in", width=12, height=6,
+#        dpi=300)
+
+```
+
+
+```{r}
+df_comparison |> 
+  dplyr::group_by(Source,Biome) |> 
+  dplyr::summarise(
+    FCO2=mean(FCO2,na.rm=T),
+    std=mean(std,na.rm=T)
+  )
 ```
 
