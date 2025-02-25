@@ -1164,6 +1164,8 @@ south_america |>
                  text = ggplot2::element_text(size=20)
                  )+
   map_theme_2()+
+  ggplot2::theme(legend.position = c(1,0),
+                 legend.justification = c(1, 0))+
   ggplot2::scale_color_manual(values = c('darkgreen','darkred'))+
   ggplot2::scale_fill_manual(values = c('darkgreen','darkred'))+
   ggplot2::labs(x='Longitude',y='Latitude',
@@ -1204,6 +1206,8 @@ south_america |>
                  text = ggplot2::element_text(size=20)
   )+
   map_theme_2()+
+  ggplot2::theme(legend.position = c(1,0),
+                 legend.justification = c(1, 0))+
   ggplot2::scale_color_viridis_c(option = "inferno")+
   ggplot2::scale_fill_viridis_c(option = "inferno")+
   ggplot2::labs(x='Longitude',y='Latitude',
@@ -1246,6 +1250,8 @@ south_america |>
                  text = ggplot2::element_text(size=20)
   )+
   map_theme_2()+
+  ggplot2::theme(legend.position = c(1,0),
+                 legend.justification = c(1, 0))+
   ggplot2::scale_color_viridis_c(option = "inferno")+
   ggplot2::scale_fill_viridis_c(option = "inferno")+
   ggplot2::labs(x='Longitude',y='Latitude',
@@ -1592,7 +1598,10 @@ south_america |>
                  axis.title = ggplot2::element_text(size=20),
                  text = ggplot2::element_text(size=20))+
   map_theme_2()+
+  #ggplot2::scale_fill_viridis_d(option='inferno')+
   ggplot2::scale_fill_manual(values = c('darkred','darkgreen'))+
+  ggplot2::theme(legend.position = c(1,0),
+                 legend.justification = c(1, 0))+
   ggplot2::labs(x='Longitude',y='Latitude',fill=expression('SIF'[Norm]))
 ```
 
@@ -1600,7 +1609,7 @@ south_america |>
 
 ``` r
 
-# ggplot2::ggsave('img/sif_norm_all.png',units="in", width=11, height=11,
+# ggplot2::ggsave('img/sif_norm_all_viridis.png',units="in", width=11, height=11,
 #                 dpi=300)
 ```
 
@@ -1630,37 +1639,141 @@ sif_proce <- sifdf_filter |>
 ```
 
 ``` r
+my_phi_matrix <-dfall |> 
+  dplyr::filter(xco2!="Non Significant") |> 
+  dplyr::select(lon,lat,year,beta_line,xco2) |> 
+  dplyr::left_join(sif_proce) |> 
+  na.omit() |> 
+  dplyr::group_by(lon, lat) |> 
+  dplyr::mutate(
+    new_class = dplyr::case_when(
+      xco2 == "Source" & sif_class == "Enhancement" ~ "PP",
+      xco2 == "Source" & sif_class == "Decreasing" ~ "PN",
+      xco2 == "Sink" & sif_class == "Enhancement" ~ "NP",
+      xco2 == "Sink" & sif_class == "Decreasing" ~ "NN"
+    )
+  ) |> 
+  dplyr::group_by(lon,lat, new_class) |> 
+  dplyr::summarise(
+    nobs = dplyr::n()
+  )|> 
+  tidyr::pivot_wider(
+    names_from = new_class,
+    values_from = nobs,
+    values_fill = 0
+  ) |> 
+  dplyr::mutate(
+    total = sum(NN,PP,NP,PN)
+  ) |> 
+  dplyr::filter(total >2) |> 
+  dplyr::mutate(
+    ac = PP+NP,
+    bd = PN+NN,
+    ab = PP+PN,
+    cd = NP+NN,
+    ad = PP*NN,
+    bc = PN*NP,
+    nume = ad-bc,
+    deno = sqrt((ab*ac*bd*cd)),
+    phi = ifelse(deno !=0, nume/deno,0)
+  )  |> 
+  na.omit()
 
-
-
-br |>
-  ggplot2::ggplot()+
-  ggplot2::geom_sf(fill="white", color="black",
-                   size=.15, show.legend = FALSE)+
-  ggplot2::geom_tile(data=dfall |> 
-                       dplyr::filter(xco2!="Non Significant") |> 
-                       dplyr::select(lon,lat,year,beta_line,xco2) |> 
-                       dplyr::left_join(sif_proce) |>
-                       dplyr::filter(sif_class=='Enhancement'&xco2=='Sink'),
-                     ggplot2::aes(x=lon,y=lat,fill=as.factor(year)),
-  )+
-  map_theme_2()+
-  ggplot2::scale_fill_viridis_d()+
-  ggplot2::labs(x='Longitude',y='Latitude',fill=expression(''))
+my_phi_matrix |> dplyr::glimpse()
+#> Rows: 217
+#> Columns: 16
+#> Groups: lon, lat [217]
+#> $ lon   <dbl> -61.0, -58.5, -58.0, -58.0, -57.5, -57.5, -57.0, -57.0, -56.5, -…
+#> $ lat   <dbl> -3.5, -15.5, -17.5, -12.0, -21.0, -20.0, -15.5, -15.0, -30.0, -1…
+#> $ NN    <int> 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0…
+#> $ NP    <int> 3, 2, 0, 1, 0, 0, 1, 1, 2, 1, 2, 0, 0, 2, 1, 1, 0, 1, 3, 0, 0, 0…
+#> $ PP    <int> 0, 1, 3, 2, 2, 3, 2, 2, 0, 2, 0, 2, 0, 1, 1, 3, 3, 4, 0, 0, 1, 2…
+#> $ PN    <int> 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 3, 1, 3, 0, 0, 0, 1, 0, 0, 3, 3, 2…
+#> $ total <int> 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 5, 3, 3, 3, 4, 4, 4, 6, 3, 3, 4, 4…
+#> $ ac    <int> 3, 3, 3, 3, 2, 3, 3, 3, 2, 3, 2, 2, 0, 3, 2, 4, 3, 5, 3, 0, 1, 2…
+#> $ bd    <int> 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 3, 1, 3, 0, 2, 0, 1, 1, 0, 3, 3, 2…
+#> $ ab    <int> 0, 2, 3, 2, 2, 3, 2, 2, 1, 2, 3, 3, 3, 1, 1, 3, 4, 4, 0, 3, 4, 4…
+#> $ cd    <int> 4, 2, 0, 1, 1, 0, 1, 1, 2, 1, 2, 0, 0, 2, 3, 1, 0, 2, 3, 0, 0, 0…
+#> $ ad    <int> 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 4, 0, 0, 0, 0…
+#> $ bc    <int> 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
+#> $ nume  <int> 0, -2, 0, 0, 2, 0, 0, 0, -2, 0, -6, 0, 0, 0, 2, 0, 0, 4, 0, 0, 0…
+#> $ deno  <dbl> 0.000000, 3.464102, 0.000000, 0.000000, 2.000000, 0.000000, 0.00…
+#> $ phi   <dbl> 0.0000000, -0.5773503, 0.0000000, 0.0000000, 1.0000000, 0.000000…
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
+``` r
+biomes |> 
+  dplyr::filter(name_biome!="Sistema Costeiro") |> 
+  ggplot2::ggplot()+
+  ggplot2::geom_sf(fill="white", color="grey10",
+                   size=.15, show.legend = FALSE)+
+  ggplot2::geom_tile(data = my_phi_matrix,
+                     ggplot2::aes(y=lat,x=lon,fill=phi)
+  )+
+  map_theme_2()+
+  ggplot2::scale_fill_gradientn(colors=c("darkmagenta","navyblue",
+                                      "white","darkorange","darkred"),
+                                breaks=c(-1,-0.5,0,0.5,1))+
+  # ggplot2::scale_fill_viridis_c(limits=c(-1,1),
+  #                               option='inferno')+
+  ggplot2::labs(x='Longitude',y='Latitude',fill=expression(phi))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+
+``` r
+
+# ggplot2::ggsave('img/phi_map.png',units="in", width=11, height=11,
+#                 dpi=300)
+```
+
+#### 
+
+``` r
+dfall |> 
+  dplyr::filter(xco2!="Non Significant") |> 
+  dplyr::select(lon,lat,year,beta_line,xco2) |> 
+  dplyr::left_join(sif_proce) |> 
+  na.omit() |> 
+  dplyr::group_by(lon, lat) |> 
+  dplyr::mutate(
+    new_class = dplyr::case_when(
+      xco2 == "Source" & sif_class == "Enhancement" ~ "PP",
+      xco2 == "Source" & sif_class == "Decreasing" ~ "PN",
+      xco2 == "Sink" & sif_class == "Enhancement" ~ "NP",
+      xco2 == "Sink" & sif_class == "Decreasing" ~ "NN"
+    )
+  ) |> 
+  dplyr::group_by(new_class) |> 
+  dplyr::summarise(
+    nobs = dplyr::n()
+  ) |> 
+  tidyr::pivot_wider(
+    names_from = new_class,
+    values_from = nobs,
+    values_fill = 0
+  ) |> 
+  dplyr::mutate(
+    ratio = NP/(NP+NN)
+  )
+#> # A tibble: 1 × 5
+#>      NN    NP    PN    PP ratio
+#>   <int> <int> <int> <int> <dbl>
+#> 1   252   467   255   463 0.650
+```
 
 ### **linear regression by month for brazil**
 
 ``` r
-mod <- lm(xco2_mean~x,data =xco2df_rationality |>
+mod <- lm(xco2_mean~x,data =df_stat_desc_xco2 |>
             dplyr::mutate(
+              xco2_mean = MEAN,
               x = 1:dplyr::n()
             ))
-xco2df_rationality |>
+df_stat_desc_xco2 |>
   dplyr::filter(lubridate::year(date)<2023) |>
   dplyr::mutate(
+    xco2_mean = MEAN,
     x=1:dplyr::n(),
     xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
     delta=xco2_est - xco2_mean,
@@ -1688,7 +1801,7 @@ xco2df_rationality |>
   ))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-31-1.png)<!-- -->
 
 # **Comparison with other studies**
 
@@ -1715,7 +1828,7 @@ df_comparison |>
   ggplot2::theme(axis.text.x  = ggplot2::element_text(hjust = 1,angle = 45))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
 
 ``` r
 
@@ -1748,3 +1861,60 @@ df_comparison |>
 #> 10 OCO-2 MIP v10        Atlantic Forest -10.9     8.90  
 #> # ℹ 13 more rows
 ```
+
+###### complementary
+
+``` r
+dfall |> 
+  dplyr::filter(xco2!='Non Significant') |> 
+  dplyr::group_by(year) |> 
+  dplyr::summarise(
+    nobs= dplyr::n()
+  )
+#> # A tibble: 8 × 2
+#>    year  nobs
+#>   <int> <int>
+#> 1  2015   156
+#> 2  2016   218
+#> 3  2017   102
+#> 4  2018   204
+#> 5  2019   210
+#> 6  2020   214
+#> 7  2021   180
+#> 8  2022   158
+```
+
+##### 
+
+``` r
+meteo_avg <- readr::read_rds('nasa_power_data/data/meteo_avg.rds')
+```
+
+### 
+
+``` r
+df_stat_desc_xco2 |> 
+  dplyr::mutate(
+    xco2_mean = MEAN,
+    x=1:dplyr::n(),
+    xco2_est = mod$coefficients[1] + mod$coefficients[2]*x,
+    delta=xco2_est - xco2_mean,
+    xco2r = (mod$coefficients[1]-delta)-(mean(xco2_mean)-mod$coefficients[1])
+  ) |> 
+  dplyr::select(date,xco2r) |> 
+  dplyr::left_join(
+    df_stat_desc_sif |> 
+      dplyr::select(date,MEAN) |> 
+      dplyr::rename(sif=MEAN)
+  ) |> 
+  dplyr::left_join(meteo_avg |> 
+                     dplyr::ungroup() |> 
+                     dplyr::select(-c(YEAR,MM))) |> 
+  na.omit() |> 
+  dplyr::select(-c(date,ws)) |> 
+  GGally::ggpairs(upper=list(continuous = GGally::wrap("cor", 
+                                                       method =
+                                                         "spearman")))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->

@@ -8,3 +8,5 @@ data-raw/
 data/
 SIF/data-raw/
 SIF/data/
+nasa_power_data/data/nasa_power_data.rds
+nasa_power_data/data-raw/
