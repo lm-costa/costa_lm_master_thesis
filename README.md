@@ -183,6 +183,43 @@ biomes <- geobr::read_biomes(showProgress = FALSE)
 xco2df <- readr::read_rds('data/xco2_0.5deg_full_trend.rds')
 ```
 
+``` r
+biomes2015 <- biomes |> dplyr::mutate(year=2015)
+biomes2016 <- biomes |> dplyr::mutate(year=2016)
+biomes2017 <- biomes |> dplyr::mutate(year=2017)
+biomes2018 <- biomes |> dplyr::mutate(year=2018)
+biomes2020 <- biomes |> dplyr::mutate(year=2020)
+biomes2021 <- biomes |> dplyr::mutate(year=2021)
+biomes2022 <- biomes |> dplyr::mutate(year=2022)
+
+biomes <- rbind(biomes,biomes2015,biomes2016,
+                biomes2017,biomes2018,biomes2020,
+                biomes2021,biomes2022)
+
+biomes
+#> Simple feature collection with 56 features and 3 fields
+#> Geometry type: MULTIPOLYGON
+#> Dimension:     XY
+#> Bounding box:  xmin: -73.98304 ymin: -34.95942 xmax: -28.84785 ymax: 7.053767
+#> Geodetic CRS:  SIRGAS 2000
+#> First 10 features:
+#>          name_biome code_biome year                           geom
+#> 1          Amazônia          1 2019 MULTIPOLYGON (((-44.08515 -...
+#> 2          Caatinga          2 2019 MULTIPOLYGON (((-41.7408 -2...
+#> 3           Cerrado          3 2019 MULTIPOLYGON (((-43.39009 -...
+#> 4    Mata Atlântica          4 2019 MULTIPOLYGON (((-48.70814 -...
+#> 5             Pampa          5 2019 MULTIPOLYGON (((-52.82472 -...
+#> 6          Pantanal          6 2019 MULTIPOLYGON (((-57.75946 -...
+#> 7  Sistema Costeiro         NA 2019 MULTIPOLYGON (((-44.64799 -...
+#> 8          Amazônia          1 2015 MULTIPOLYGON (((-44.08515 -...
+#> 9          Caatinga          2 2015 MULTIPOLYGON (((-41.7408 -2...
+#> 10          Cerrado          3 2015 MULTIPOLYGON (((-43.39009 -...
+
+rm(biomes2015,biomes2016,
+                biomes2017,biomes2018,biomes2020,
+                biomes2021,biomes2022)
+```
+
 ## **Data Overview**
 
 ### **Descriptive statistics**
@@ -236,7 +273,62 @@ xco2df |>
   ggplot2::theme_bw()
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+## 
+
+``` r
+biomes |> 
+  dplyr::filter(name_biome!="Sistema Costeiro") |> 
+  ggplot2::ggplot()+
+  ggplot2::geom_sf(fill="white")+
+  ggplot2::geom_tile(
+    data=xco2df |> 
+      dplyr::filter(dist_xco2<0.25 & year <2023) |>
+      dplyr::group_by(year,lon_grid,lat_grid) |> 
+      dplyr::summarise(
+        nobs=dplyr::n()
+      ) |> #dplyr::pull(nobs) |> max()
+      dplyr::mutate(
+        nobs_class=dplyr::case_when(
+          nobs < 6 ~ 5,
+          nobs < 12 ~11,
+          nobs < 24 ~ 23,
+          nobs < 48 ~ 47,
+          nobs<96 ~95,
+          nobs<192~191,
+          nobs>=192~Inf
+        )
+      ),
+    ggplot2::aes(x=lon_grid,y=lat_grid,
+                 fill=forcats::as_factor(nobs_class))
+  )+
+  ggplot2::scale_fill_viridis_d()+
+  #ggplot2::geom_sf(data=biomes,fill=NA)+
+  ggplot2::facet_wrap(~year)+
+  ggplot2::labs(
+    x='longitude',
+    y="latitude",
+    fill= expression("soundings")
+  )
+```
+
+![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
+``` r
+xco2df |> 
+  dplyr::filter(dist_xco2<0.25 & year <2023) |>
+  dplyr::group_by(year,lon_grid,lat_grid) |> 
+  dplyr::summarise(
+    nobs=dplyr::n()
+  ) |> 
+  #dplyr::arrange(dplyr::desc(nobs)) |> 
+  ggplot2::ggplot(ggplot2::aes(x=nobs))+
+  ggplot2::geom_histogram()+
+  ggplot2::facet_wrap(~year)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 ## **Temporal visualization**
 
@@ -254,21 +346,25 @@ xco2df |>
   ggplot2::geom_line(color="red")+
   ggplot2::geom_smooth(method = "lm") +
   ggplot2::ylim(390,420)+
-  ggpubr::stat_regline_equation(ggplot2::aes(
-                                  label =  paste(..eq.label.., ..rr.label..,
-                                                 sep = "*plain(\",\")~~")),
-                                label.y = 420) +
-  ggplot2::facet_wrap(~year,scales ='free')+
+  ggpmisc::stat_poly_eq(formula = y ~ x, 
+               ggplot2::aes(label = paste(..eq.label.., 
+                                          ..rr.label.., 
+                                 #..p.value.label.., 
+                                 sep = "*`,`~")),
+               label.y = 0.01,
+               parse = TRUE
+               )+
+  ggplot2::facet_wrap(~year,scales ='free_x')+
   ggplot2::theme_bw()+
   ggplot2::labs(x='',y=expression('Xco'[2]~' (ppm)'),fill='' )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
 
-
-# ggplot2::ggsave('img/xco2_temporal_ano.png',units="in", width=10, height=7,
+# 
+# ggplot2::ggsave('img/xco2_temporal_ano_pvalue.png',units="in", width=10, height=7,
 #                 dpi=300)
 ```
 
@@ -313,8 +409,14 @@ xco2df_rationality |>
   ggplot2::geom_point(shape=21,color="black",fill="gray") +
   ggplot2::geom_line(color="red") +
   ggplot2::geom_smooth(method = "lm") +
-  ggpubr::stat_regline_equation(ggplot2::aes(
-    label =  paste(..eq.label.., ..rr.label.., sep = "*plain(\",\")~~"))) +
+  ggpmisc::stat_poly_eq(formula = y ~ x, 
+               ggplot2::aes(label = paste(..eq.label.., 
+                                          ..rr.label.., 
+                                 #..p.value.label.., 
+                                 sep = "*`,`~")),
+               label.y = 0.01,
+               parse = TRUE
+               ) +
   ggplot2::facet_wrap(~lubridate::year(date),scales = 'free_x')+
   ggplot2::theme_bw()+
   ggplot2::xlab('Month')+
@@ -323,11 +425,11 @@ xco2df_rationality |>
   ))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 ``` r
 
-# ggplot2::ggsave('img/rationality_beta.png',units="in", width=8, height=6,
+# ggplot2::ggsave('img/rationality_beta.png',units="in", width=10, height=7,
 #                dpi=300)
 ```
 
@@ -603,32 +705,32 @@ for(i in 2015:2022){
 #> [1] "XCO2 before regionalization"
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-2.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-2.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-3.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-3.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-4.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-4.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-5.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-5.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-6.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-6.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -637,32 +739,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-7.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-7.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-8.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-8.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-9.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-9.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-10.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-10.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-11.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-11.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-12.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-12.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -671,32 +773,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-13.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-13.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-14.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-14.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-15.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-15.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-16.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-16.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-17.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-17.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-18.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-18.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -705,32 +807,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-19.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-19.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-20.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-20.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-21.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-21.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-22.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-22.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-23.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-23.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-24.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-24.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -739,32 +841,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-25.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-25.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-26.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-26.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-27.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-27.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-28.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-28.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-29.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-29.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-30.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-30.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -773,32 +875,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-31.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-31.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-32.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-32.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-33.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-33.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-34.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-34.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-35.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-35.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-36.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-36.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -807,32 +909,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-37.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-37.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-38.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-38.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-39.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-39.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-40.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-40.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-41.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-41.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-42.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-42.png)<!-- -->
 
     #> [1] "==============================================="
     #> [1] "==============================================="
@@ -841,32 +943,32 @@ for(i in 2015:2022){
     #> [1] "----------------------------"
     #> [1] "XCO2 before regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-43.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-43.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "XCO2 after regionalization"
 
-![](README_files/figure-gfm/unnamed-chunk-10-44.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-44.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant βpixel histogram"
 
-![](README_files/figure-gfm/unnamed-chunk-10-45.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-45.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "significant source and sink"
 
-![](README_files/figure-gfm/unnamed-chunk-10-46.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-46.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux"
 
-![](README_files/figure-gfm/unnamed-chunk-10-47.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-47.png)<!-- -->
 
     #> [1] "----------------------------"
     #> [1] "CO2 Flux error"
 
-![](README_files/figure-gfm/unnamed-chunk-10-48.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-48.png)<!-- -->
 
     #> [1] "==============================================="
 
@@ -1109,7 +1211,7 @@ dfall |>
   ggplot2::labs(x=expression('βxco'[2]~'(ppm month'^-1~')'),y='',col='',fill='')
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
 
 ### **Avegerage CO2 balance for Brazil**
 
@@ -1142,16 +1244,17 @@ dfall |>
   ggplot2::theme_bw()
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
 
 ### **All CO2 sources and sinks**
 
 ``` r
-south_america |>
+biomes |>
+  dplyr::filter(name_biome!="Sistema Costeiro") |> 
   ggplot2::ggplot()+
   ggspatial::annotation_map_tile(type = "cartolight")+
-  ggplot2::geom_sf(col='grey',fill='white')+
-  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggplot2::geom_sf(data=south_america,col='grey',fill='white')+
+  ggplot2::geom_sf(col='black',fill='grey50')+
   ggplot2::ylim(-35,5.5)+
   ggplot2::xlim(-75,-35)+
   ggplot2::geom_tile(data=dfall |>
@@ -1166,28 +1269,30 @@ south_america |>
   map_theme_2()+
   ggplot2::theme(legend.position = c(1,0),
                  legend.justification = c(1, 0))+
-  ggplot2::scale_color_manual(values = c('darkgreen','darkred'))+
-  ggplot2::scale_fill_manual(values = c('darkgreen','darkred'))+
+  ggplot2::scale_color_manual(values = c('green','red'))+
+  ggplot2::scale_fill_manual(values = c('green','red'))+
   ggplot2::labs(x='Longitude',y='Latitude',
                 col=expression('Xco'[2]),fill=expression('Xco'[2]))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
 
 ``` r
 
-# ggplot2::ggsave('img/xco2_identification_all.png',units="in", width=11, height=11,
-#                dpi=300)
+# ggplot2::ggsave('img/xco2_identification_all_teste.png',units="in",
+#                 width=11, height=11,
+#                 dpi=300)
 ```
 
 ### **All FCO2**
 
 ``` r
-south_america |>
+biomes |>
+  dplyr::filter(name_biome!="Sistema Costeiro") |> 
   ggplot2::ggplot()+
-  ggspatial::annotation_map_tile(type = 'cartolight')+
-  ggplot2::geom_sf(col='grey',fill='white')+
-  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggspatial::annotation_map_tile(type = "cartolight")+
+  ggplot2::geom_sf(data=south_america,col='grey',fill='white')+
+  ggplot2::geom_sf(col='black',fill='grey50')+
   ggplot2::ylim(-35,5.5)+
   ggplot2::xlim(-75,-35)+
   ggplot2::geom_tile(data=dfall |>
@@ -1198,7 +1303,8 @@ south_america |>
                          beta_molm_erro=(10000*beta_error)*44/24.45,
                          betaerror_fco2 = beta_molm_erro*30/1000
                        ), 
-                     ggplot2::aes(x=lon,y=lat,color=beta_fco2,fill=beta_fco2),
+                     ggplot2::aes(x=lon,y=lat,
+                                  color=beta_fco2,fill=beta_fco2),
   )+
   ggplot2::facet_wrap(~year)+
   ggplot2::theme(axis.text = ggplot2::element_text(size=12),
@@ -1216,7 +1322,7 @@ south_america |>
   )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-15-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
 
 ``` r
 
@@ -1227,11 +1333,12 @@ south_america |>
 ### **All FCO2 errors**
 
 ``` r
-south_america |>
+biomes |>
+  dplyr::filter(name_biome!="Sistema Costeiro") |> 
   ggplot2::ggplot()+
-  ggspatial::annotation_map_tile(type = 'cartolight')+
-  ggplot2::geom_sf(col='grey',fill='white')+
-  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggspatial::annotation_map_tile(type = "cartolight")+
+  ggplot2::geom_sf(data=south_america,col='grey',fill='white')+
+  ggplot2::geom_sf(col='black',fill='grey50')+
   ggplot2::ylim(-35,5.5)+
   ggplot2::xlim(-75,-35)+
   ggplot2::geom_tile(data=dfall |>
@@ -1252,19 +1359,20 @@ south_america |>
   map_theme_2()+
   ggplot2::theme(legend.position = c(1,0),
                  legend.justification = c(1, 0))+
-  ggplot2::scale_color_viridis_c(option = "inferno")+
-  ggplot2::scale_fill_viridis_c(option = "inferno")+
+  ggplot2::scale_color_viridis_c(direction = -1)+
+  ggplot2::scale_fill_viridis_c(direction=-1)+
   ggplot2::labs(x='Longitude',y='Latitude',
                 col=expression(epsilon~'FCO'[2]),
                 fill=expression(epsilon~'FCO'[2])
   )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
 
 ``` r
-# ggplot2::ggsave('img/xco2_fco2_erro_all.png',units="in", width=11, height=11,
-#                 dpi=300)
+ggplot2::ggsave('img/xco2_fco2_erro_all.png',units="in",
+                width=11,height=11,
+                dpi=300)
 ```
 
 # **SIF**
@@ -1502,7 +1610,7 @@ sifdf |>
   ggplot2::theme_bw()
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
 
 ## **Temporal visualization**
 
@@ -1530,7 +1638,7 @@ sifdf |>
   ggplot2::labs(x='',y=expression('SIF 757nm (Wm'^-2~'sr'^-1~mu~'m'^-1~')'),fill='' )
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
 
 ## **Pré-processing**
 
@@ -1568,11 +1676,12 @@ sif_medians <- sifdf_filter |>
 ## **SIF normalized**
 
 ``` r
-south_america |>
+biomes |>
+  dplyr::filter(name_biome!="Sistema Costeiro") |> 
   ggplot2::ggplot()+
-  ggspatial::annotation_map_tile(type = 'cartolight')+
-  ggplot2::geom_sf(col='grey',fill='white')+
-  ggplot2::geom_sf(data=br,col='red',fill='NA')+
+  ggspatial::annotation_map_tile(type = "cartolight")+
+  ggplot2::geom_sf(data=south_america,col='grey',fill='white')+
+  ggplot2::geom_sf(col='black',fill='grey50')+
   ggplot2::ylim(-35,5.5)+
   ggplot2::xlim(-75,-35)+
   ggplot2::geom_tile(data=
@@ -1593,23 +1702,25 @@ south_america |>
                        ) |> dplyr::filter(year!=2023),
                      ggplot2::aes(x=lon,y=lat,fill=sif_class),
   )+
+  ggplot2::geom_sf(col='black',fill=NA)+
   ggplot2::facet_wrap(~year)+
   ggplot2::theme(axis.text = ggplot2::element_text(size=12),
                  axis.title = ggplot2::element_text(size=20),
                  text = ggplot2::element_text(size=20))+
   map_theme_2()+
   #ggplot2::scale_fill_viridis_d(option='inferno')+
-  ggplot2::scale_fill_manual(values = c('darkred','darkgreen'))+
+  ggplot2::scale_fill_manual(values = c('red','green'))+
   ggplot2::theme(legend.position = c(1,0),
                  legend.justification = c(1, 0))+
   ggplot2::labs(x='Longitude',y='Latitude',fill=expression('SIF'[Norm]))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
 
 ``` r
 
-# ggplot2::ggsave('img/sif_norm_all_viridis.png',units="in", width=11, height=11,
+# ggplot2::ggsave('img/sif_norm_all_viridis.png',units="in", 
+#                 width=11, height=11,
 #                 dpi=300)
 ```
 
@@ -1702,11 +1813,17 @@ my_phi_matrix |> dplyr::glimpse()
 ```
 
 ``` r
-biomes |> 
+biomes |>
   dplyr::filter(name_biome!="Sistema Costeiro") |> 
   ggplot2::ggplot()+
-  ggplot2::geom_sf(fill="white", color="grey10",
-                   size=.15, show.legend = FALSE)+
+  ggspatial::annotation_map_tile(type = "cartolight")+
+  ggplot2::geom_sf(data=south_america,col='grey',fill='white')+
+  ggplot2::geom_sf(col='black',fill='grey50')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+ 
+  # ggplot2::ggplot()+
+  # ggplot2::geom_sf(fill="white", color="grey10",
+  #                  size=.15, show.legend = FALSE)+
   ggplot2::geom_tile(data = my_phi_matrix,
                      ggplot2::aes(y=lat,x=lon,fill=phi)
   )+
@@ -1719,7 +1836,7 @@ biomes |>
   ggplot2::labs(x='Longitude',y='Latitude',fill=expression(phi))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
 
 ``` r
 
@@ -1801,7 +1918,7 @@ df_stat_desc_xco2 |>
   ))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-31-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-34-1.png)<!-- -->
 
 # **Comparison with other studies**
 
@@ -1828,7 +1945,7 @@ df_comparison |>
   ggplot2::theme(axis.text.x  = ggplot2::element_text(hjust = 1,angle = 45))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-35-1.png)<!-- -->
 
 ``` r
 
@@ -1860,6 +1977,1770 @@ df_comparison |>
 #>  9 OCO-2 MIP v10        Amazon           17.4    24.3   
 #> 10 OCO-2 MIP v10        Atlantic Forest -10.9     8.90  
 #> # ℹ 13 more rows
+```
+
+## **OCO-2 MIP**
+
+data source: <https://gml.noaa.gov/ccgg/OCO2_v10mip/>
+
+``` r
+oco2_mip_files <- list.files('OCO2_MIP/data_raw/',
+                          pattern = 'LNLGIS.nc',full.names = T)
+
+oco2_mip_files <- oco2_mip_files[-c(6,7)]
+```
+
+``` r
+oco2_mip <- terra::rast(oco2_mip_files,'land')
+
+oco2_mip_ensemble <- terra::mean(oco2_mip)
+
+raster::plot(oco2_mip_ensemble)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-38-1.png)<!-- -->
+
+``` r
+biomes_mask <- biomes |> 
+  dplyr::filter(name_biome!="Sistema Costeiro")
+
+biomes_mask |> dplyr::pull(name_biome) |> unique()
+#> [1] "Amazônia"       "Caatinga"       "Cerrado"        "Mata Atlântica"
+#> [5] "Pampa"          "Pantanal"
+```
+
+``` r
+biomes_mask['name_biome'] <- c("Amazon","Caatinga","Cerrado", 
+                               "Atlantic Forest","Pampa","Pantanal")
+
+br_oco2_mip <- terra::crop(oco2_mip_ensemble,biomes_mask, mask=T)
+
+br_oco2_mip_gco2 <- br_oco2_mip*3.67/12
+
+raster::plot(br_oco2_mip_gco2)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-40-1.png)<!-- -->
+
+``` r
+biomes_name <- c("Amazon","Caatinga","Cerrado", "Atlantic Forest",
+                 "Pampa","Pantanal")
+for(i in 1:length(biomes_name)){
+  if(i == 1){ 
+    biomes_mask_cut <- biomes_mask |>
+      dplyr::filter(name_biome==biomes_name[i])
+    oco2_mip_filter <- terra::crop(br_oco2_mip_gco2,
+                                   biomes_mask,mask=T)
+    my_mean <- oco2_mip_filter |> 
+      raster::raster() |> 
+      raster::cellStats(stat=mean)
+    
+    my_sd <- oco2_mip_filter |> 
+      raster::raster() |> 
+      raster::cellStats(stat=sd)
+    
+    my_sum <- oco2_mip_filter |> 
+      raster::raster() |> 
+      raster::cellStats(stat=sum)
+    
+    my_count <- oco2_mip_filter |> 
+      raster::raster() |> 
+      raster::as.data.frame() |> 
+      na.omit() |> 
+      dplyr::summarise(
+        nobs=dplyr::n()
+      )
+    
+    df <- data.frame(
+      'biome'=biomes_name[i],
+      'sum'=my_sum,
+      'mean'=my_mean,
+      'sd'=my_sd,
+      'nobs'=my_count
+    )
+  }else{
+    biomes_mask_aux <- biomes_mask |>
+      dplyr::filter(name_biome==biomes_name[i])
+    
+    oco2_mip_filter_aux <- terra::crop(br_oco2_mip_gco2,
+                                       biomes_mask_aux,mask=T)
+    my_mean_aux <- oco2_mip_filter_aux |> 
+      raster::raster() |> 
+      raster::cellStats(stat=mean)
+    
+    my_sd_aux <- oco2_mip_filter_aux |> 
+      raster::raster() |> 
+      raster::cellStats(stat=sd)
+    my_sum_aux <- oco2_mip_filter_aux |> 
+      raster::raster() |> 
+      raster::cellStats(stat=sum)
+    my_count_aux <- oco2_mip_filter_aux |> 
+      raster::raster() |> 
+      raster::as.data.frame() |> 
+      na.omit() |> 
+      dplyr::summarise(
+        nobs=dplyr::n()
+      )
+    
+    
+    df_aux <- data.frame(
+      'biome'=biomes_name[i],
+      "sum"=my_sum_aux,
+      'mean'=my_mean_aux,
+      'sd'=my_sd_aux,
+      'nobs'=my_count_aux
+    )
+    
+    df <- rbind(df,df_aux)
+    }
+}
+
+df
+#>             biome        sum       mean        sd nobs
+#> 1          Amazon  1281.8441   1.568965 39.796729  817
+#> 2        Caatinga  1492.9421  15.882363 18.962022   94
+#> 3         Cerrado -3412.9895 -13.651958 30.760248  250
+#> 4 Atlantic Forest -5025.6753 -30.093864 24.224309  167
+#> 5           Pampa -1459.0847 -39.434721 15.320834   37
+#> 6        Pantanal  -589.8356 -29.491778  9.882619   20
+```
+
+``` r
+my_beta <- dfall |> 
+  dplyr::filter(xco2!="Non Significant") |> 
+  dplyr::select(lon,lat,year,beta_line) |> 
+  dplyr::mutate(beta_molm=(10000*beta_line)*44/24.45, 
+                beta_fco2 = beta_molm*30/1000, 
+                )
+```
+
+``` r
+# Expand grid for brazil
+
+#
+dist <- 0.5
+grid_br <- expand.grid(lon=seq(-74,
+                               -27,dist),
+                       lat=seq(-34,
+                               6,
+                               dist))
+plot(grid_br)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-43-1.png)<!-- -->
+
+``` r
+
+
+br <- geobr::read_country(showProgress = FALSE)
+region <- geobr::read_region(showProgress = FALSE)
+
+pol_br <- br$geom |> purrr::pluck(1) |> as.matrix()
+pol_north <- region$geom |> purrr::pluck(1) |> as.matrix()
+pol_northeast <- region$geom |> purrr::pluck(2) |> as.matrix()
+pol_southeast <- region$geom |> purrr::pluck(3) |> as.matrix()
+pol_south <- region$geom |> purrr::pluck(4) |> as.matrix()
+pol_midwest<- region$geom |> purrr::pluck(5) |> as.matrix()
+
+# correcting poligions
+
+pol_br <- pol_br[pol_br[,1]<=-34,]
+pol_br <- pol_br[!((pol_br[,1]>=-38.8 & pol_br[,1]<=-38.6) &
+                     (pol_br[,2]>= -19 & pol_br[,2]<= -16)),]
+
+pol_northeast <- pol_northeast[pol_northeast[,1]<=-34,]
+pol_northeast <- pol_northeast[!((pol_northeast[,1]>=-38.7 &
+                                    pol_northeast[,1]<=-38.6) &
+                                   pol_northeast[,2]<= -15),]
+
+pol_southeast <- pol_southeast[pol_southeast[,1]<=-30,]
+
+
+### filtering expanded grid to the brazil boundries
+
+grid_br_cut <- grid_br |>
+  dplyr::mutate(
+    flag_br = def_pol(lon,lat,pol_br),
+    flag_north = def_pol(lon,lat,pol_north),
+    flag_northeast = def_pol(lon,lat,pol_northeast),
+    flag_midwest= def_pol(lon,lat,pol_midwest),
+    flag_southeast = def_pol(lon,lat,pol_southeast),
+    flag_south = def_pol(lon,lat,pol_south)
+  ) |>
+  tidyr::pivot_longer(
+    tidyr::starts_with('flag'),
+    names_to = 'region',
+    values_to = 'flag'
+  ) |>
+  dplyr::filter(flag) |>
+  dplyr::select(lon,lat) |>
+  dplyr::group_by(lon,lat) |>
+  dplyr::summarise(
+    n_obs = dplyr::n()
+  )
+
+plot(grid_br_cut$lon,grid_br_cut$lat)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-43-2.png)<!-- -->
+
+``` r
+library(sp)
+library(raster)
+library(tidyverse)
+library(gstat)
+
+my_fco2 <- my_beta |> select(lon,lat,beta_fco2) |> as.data.frame()
+coordinates(my_fco2) <- c('lon','lat')
+
+idw_for_cv <- gstat(
+  formula = beta_fco2~1,
+  data=my_fco2,
+  nmax=20,
+  set=list(idp=5)
+)
+
+
+
+cv <- gstat.cv(idw_for_cv)
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+#> [inverse distance weighted interpolation]
+
+
+cv |> as_tibble() |> 
+  ggplot(aes(x=observed,y=var1.pred))+
+  geom_point()+
+  geom_smooth(method='lm')+
+  ggpubr::stat_cor()
+```
+
+![](README_files/figure-gfm/unnamed-chunk-44-1.png)<!-- -->
+
+``` r
+
+grid_br_cut <- grid_br_cut |> select(lon,lat)
+coordinates(grid_br_cut) <- c('lon','lat')
+
+
+idw_fco2 <- idw(
+  beta_fco2 ~1,
+  my_fco2,
+  newdata=grid_br_cut,
+  idp=5,
+  nmax=20)
+#> [inverse distance weighted interpolation]
+```
+
+``` r
+biomes_mask |> 
+  ggplot2::ggplot()+
+  ggplot2::geom_tile(
+    data=idw_fco2 |> as_tibble() ,
+    ggplot2::aes(
+      x=lon,y=lat,fill=var1.pred
+    )
+  )+
+  ggplot2::geom_sf(fill="NA",color='black')+
+  ggplot2::scale_fill_viridis_c(option = 'inferno',
+                                na.value='transparent')+
+  ggplot2::theme_bw()+
+  ggplot2::labs(fill=expression("FCO"[2]))
+```
+
+![](README_files/figure-gfm/unnamed-chunk-46-1.png)<!-- -->
+
+``` r
+library(ggnewscale)
+library(tidyterra)
+
+oco2_mip_plot <- south_america |> 
+  ggplot()+
+  ggspatial::annotation_map_tile(type = "cartolight")+
+  ggplot2::geom_sf(col='grey',fill="white")+
+  geom_spatraster(data=br_oco2_mip_gco2,
+                  ggplot2::aes(fill=mean))+
+  ggplot2::geom_sf(data=biomes_mask,fill="NA",color='black')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+
+  ggplot2::scale_fill_viridis_c(option = 'inferno',
+                                na.value='transparent')+
+  ggplot2::theme_bw()+
+  map_theme_2()+
+  ggplot2::labs(fill=expression("FCO"[2]))
+
+my_idw_plot <- biomes_mask |> 
+  ggplot2::ggplot()+
+  ggspatial::annotation_map_tile(type = "cartolight")+
+  ggplot2::geom_sf(data=south_america,col='grey',fill='white')+
+  ggplot2::ylim(-35,5.5)+
+  ggplot2::xlim(-75,-35)+
+  ggplot2::geom_tile(
+    data=idw_fco2 |> as_tibble() ,
+    ggplot2::aes(
+      x=lon,y=lat,fill=var1.pred
+    )
+  )+
+  ggplot2::geom_sf(fill="NA",color='black')+
+  ggplot2::scale_fill_viridis_c(option = 'inferno',
+                                na.value='transparent')+
+  ggplot2::theme_bw()+
+  map_theme_2()+
+  ggplot2::labs(fill=expression("FCO"[2]))
+
+
+ggpubr::ggarrange(
+  oco2_mip_plot,my_idw_plot,
+  labels = c('A','B'),
+  nrow=2
+)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-47-1.png)<!-- -->
+
+``` r
+
+# ggplot2::ggsave('img/idw_vs_mip.png',units="in", width=11, height=11,
+#                 dpi=300)
 ```
 
 ###### complementary
@@ -1917,4 +3798,4 @@ df_stat_desc_xco2 |>
                                                          "spearman")))
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-50-1.png)<!-- -->
