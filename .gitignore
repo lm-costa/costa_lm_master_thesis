@@ -10,4 +10,4 @@ SIF/data-raw/
 SIF/data/
 nasa_power_data/data/nasa_power_data.rds
 nasa_power_data/data-raw/
-OCO2_MIP/data-raw/
+OCO2_MIP/data_raw/
